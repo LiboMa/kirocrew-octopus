@@ -4,7 +4,8 @@
 用户定义任务，再为每个任务选择 Coding Tool、Model 和 Effort；在原生 KiroCrew 对话中执行，
 通过 Workflow Studio 跟踪进度、权限等待、交接证据与交付物。
 
-**当前：本地 macOS PoC 基线。下一步：EC2 单机实验。**
+**当前：本地 macOS PoC 基线。下一步：完成本地基础测试。**
+EC2 目前只保留规划与设计；本地验证完成后，再决定是否开展云端实验。
 EC2 自动部署、可靠后台调度、Dev Teams 多人协作和 GitHub / GitLab Connector 尚未实现。
 本项目是 KiroCrew 的扩展项目，不是 KiroCrew 上游的官方 Enterprise 产品。
 
@@ -45,7 +46,7 @@ ACP 驱动 Agent 会话，MCP 提供工具调用。工作台不绕过 KiroCrew �
 | 目的 | 文档 |
 |---|---|
 | 下一阶段做什么、如何验收 | [迭代计划](PLAN.md) |
-| 在 EC2 执行第一轮实验 | [EC2-001 实验计划](docs/experiments/EC2-001.md) |
+| 查看后续 EC2 部署设计 | [EC2-001 实验计划](docs/experiments/EC2-001.md) |
 | 了解现有实现与公开基线 | [架构与验证边界](docs/BASELINE.md) |
 | 设计 Dev Teams 平台 | [Enterprise 目标架构](docs/architecture/ENTERPRISE.md) |
 | 连接 GitHub / GitLab | [Connector 设计](docs/architecture/CONNECTORS.md) |

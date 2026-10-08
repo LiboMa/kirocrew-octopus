@@ -1,0 +1,39 @@
+# Runtime and user data
+state/
+backups/
+downloads/
+evidence/
+source/
+logs/
+sessions/
+memory/
+.kiro/
+.claude/
+.codex/
+.opencode/
+
+# Dependencies and generated output
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+dist/
+build/
+*.zip
+*.log
+*.sqlite*
+*.db
+
+# Local credentials and machine configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+auth.json
+.local_secret
+.DS_Store

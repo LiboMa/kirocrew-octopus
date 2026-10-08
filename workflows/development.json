@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "id": "development",
+  "name": "从需求到 Web 交付",
+  "steps": [
+    {
+      "id": "plan",
+      "name": "分析与规划",
+      "tool": "kiro",
+      "model": "auto",
+      "effort": "",
+      "prompt": "根据用户需求生成简短 SPEC.md、plan.md 与验收要点，约定文件结构。仅支持零依赖本地 Web 应用；不支持的需求明确报告 BLOCKED。"
+    },
+    {
+      "id": "code",
+      "name": "实现与自测",
+      "tool": "claude",
+      "model": "global.anthropic.claude-sonnet-4-6",
+      "effort": "medium",
+      "prompt": "读取需求与计划，实现 web/core.mjs 和 Node 内置 node:test 测试，实际运行测试。创建实现前后的 candidate.diff；无 Git 仓库时使用 diff -u。不要更改原始需求。"
+    },
+    {
+      "id": "review",
+      "name": "安全与测试审查",
+      "tool": "codex",
+      "model": "openai.gpt-6-astra",
+      "effort": "high",
+      "prompt": "读取真实 candidate.diff 和实现，实际运行测试，新增必要的边界回归测试。写 review.md，说明实际检查范围和发现。不要修改实现；有阻断缺陷写 BLOCKED 并停止。"
+    },
+    {
+      "id": "deliver",
+      "name": "前端交付",
+      "tool": "opencode",
+      "model": "auto",
+      "effort": "",
+      "prompt": "根据计划和审查结果完成精简、中文、手机可用的 web/index.html、style.css、ui.mjs，导入已审查核心；不使用 CDN。实际验证并写 delivery.md，列出文件和打开方法。审查未通过则报告 BLOCKED。"
+    }
+  ],
+  "revision": 1
+}

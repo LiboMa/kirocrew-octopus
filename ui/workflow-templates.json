@@ -1,0 +1,146 @@
+[
+  {
+    "id": "web-delivery",
+    "name": "Web 应用 · 四工具交付",
+    "description": "从需求分析到页面交付，适合完整演示。",
+    "input": "做一个蓝白色的发布说明工作台，支持按功能、修复和优化分类，实时预览并导出 Markdown。使用本地 HTML/CSS/JavaScript，无需安装依赖。",
+    "steps": [
+      {
+        "id": "plan",
+        "name": "分析与规划",
+        "tool": "kiro",
+        "model": "auto",
+        "effort": "",
+        "prompt": "根据用户需求定义验收标准、任务拆分和实现边界，生成简明计划与任务清单。"
+      },
+      {
+        "id": "code",
+        "name": "实现与自测",
+        "tool": "claude",
+        "model": "auto",
+        "effort": "",
+        "prompt": "按计划实现功能，保存真实 diff 并运行适合本项目的测试，记录真实结果。"
+      },
+      {
+        "id": "review",
+        "name": "安全与测试审查",
+        "tool": "codex",
+        "model": "auto",
+        "effort": "",
+        "prompt": "读取实际文件和 diff，检查安全、边界条件及回归，实际运行测试。发现阻塞问题时明确报告 BLOCKED，不把未运行的测试说成通过。"
+      },
+      {
+        "id": "deliver",
+        "name": "前端交付",
+        "tool": "opencode",
+        "model": "auto",
+        "effort": "",
+        "prompt": "根据实现与审查结果整理可访问的 Web 前端和状态报告，验证本地交付物；发现未解决的阻塞问题时停止交付。"
+      }
+    ]
+  },
+  {
+    "id": "bugfix",
+    "name": "Bug 修复 · 回归验证",
+    "description": "先复现问题，再修复并独立检查。",
+    "input": "在本次工作目录中复现并修复计数器在连续快速点击时丢失计数的问题。补充回归测试，保留修复前后的证据，并生成一页修复报告。",
+    "steps": [
+      {
+        "id": "reproduce",
+        "name": "复现与定位",
+        "tool": "kiro",
+        "model": "auto",
+        "effort": "",
+        "prompt": "读取需求和现有代码，复现问题，记录最小复现步骤及预期行为。没有真实复现证据时说明限制。"
+      },
+      {
+        "id": "fix",
+        "name": "修复与回归",
+        "tool": "claude",
+        "model": "auto",
+        "effort": "",
+        "prompt": "依据复现证据实现最小修复，添加必要回归测试，运行并保存结果与真实 diff。"
+      },
+      {
+        "id": "review",
+        "name": "独立验证",
+        "tool": "codex",
+        "model": "auto",
+        "effort": "",
+        "prompt": "独立检查修复 diff 和回归结果，实际验证边界条件；报告剩余问题。"
+      },
+      {
+        "id": "report",
+        "name": "修复报告",
+        "tool": "opencode",
+        "model": "auto",
+        "effort": "",
+        "prompt": "将问题、修复、验证和限制整理为本地 HTML 报告，链接真实产物。"
+      }
+    ]
+  },
+  {
+    "id": "review",
+    "name": "代码审查 · 双工具复核",
+    "description": "围绕现有代码，形成可核查的审查报告。",
+    "input": "审查本次工作目录中的代码，重点检查输入校验、敏感信息暴露、异常处理和测试覆盖。每条问题给出文件位置、影响与复现依据，输出本地 HTML 报告。",
+    "steps": [
+      {
+        "id": "review",
+        "name": "安全与测试审查",
+        "tool": "codex",
+        "model": "auto",
+        "effort": "",
+        "prompt": "读取实际代码和 diff，运行适用测试，报告真实问题、文件位置和验证依据。没有代码时明确 BLOCKED。"
+      },
+      {
+        "id": "verify",
+        "name": "复核与报告",
+        "tool": "claude",
+        "model": "auto",
+        "effort": "",
+        "prompt": "逐条复核前序问题，区分已验证问题与推测，生成本地 HTML 审查报告；未经用户要求不修改被审查代码。"
+      }
+    ]
+  },
+  {
+    "id": "go-web",
+    "name": "Go API · Web 工作台",
+    "description": "后端接口、独立测试和前端交付。",
+    "input": "用 Go 标准库构建一个任务管理 API，支持任务列表、新建任务与状态切换，并提供蓝白色 Web 页面。数据可先保存在内存；测试包含正常请求与无效输入，不安装第三方依赖。",
+    "steps": [
+      {
+        "id": "plan",
+        "name": "接口与验收设计",
+        "tool": "kiro",
+        "model": "auto",
+        "effort": "",
+        "prompt": "定义 Go API 的请求响应、数据模型、验收标准及测试清单，说明前后端交接约定。"
+      },
+      {
+        "id": "code",
+        "name": "Go 实现与测试",
+        "tool": "claude",
+        "model": "auto",
+        "effort": "",
+        "prompt": "使用 Go 标准库实现 API 和必要测试，验证输入与错误处理；工具不可用时明确报告，不安装依赖。"
+      },
+      {
+        "id": "review",
+        "name": "安全与回归审查",
+        "tool": "codex",
+        "model": "auto",
+        "effort": "",
+        "prompt": "读取真实实现与 diff，实际运行可用测试，检查输入校验、状态变更和并发风险。"
+      },
+      {
+        "id": "deliver",
+        "name": "Web 前端与交付",
+        "tool": "opencode",
+        "model": "auto",
+        "effort": "",
+        "prompt": "基于已实现 API 制作蓝白色 Web 页面及启动说明，保存到 web/index.html。明确区分静态预览和实际 API 联通结果。"
+      }
+    ]
+  }
+]

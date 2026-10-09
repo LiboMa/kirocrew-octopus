@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from contextlib import contextmanager
 import fcntl
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -222,6 +223,139 @@ def load_run(run):
     return manifest
 
 
+@contextmanager
+def run_lock(run):
+    """Serialize retry, checkpoint and observer publication across processes."""
+    with (run / ".workflow.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def retry_state(run):
+    return read_json(run / "retry-state.json", {"stages": {}, "requests": {}})
+
+
+def current_receipt(receipt, retry):
+    return receipt if receipt and receipt["task_id"] not in retry.get("excluded_task_ids", []) else None
+
+
+def retry_stage(run, stage, request_id):
+    """Invalidate evidence only; the native App coordinator owns dispatch."""
+    ident(stage)
+    require(isinstance(request_id, str) and bool(re.fullmatch(r"[a-zA-Z0-9-]{8,80}", request_id)),
+            "缺少请求 ID。")
+    with run_lock(run):
+        manifest = load_run(run)
+        journal = retry_state(run)
+        previous = journal["requests"].get(request_id)
+        if previous:
+            require(previous["stage"] == stage, "请求 ID 冲突。")
+            return previous
+        steps = manifest["workflow"]["steps"]
+        index = next((i for i, s in enumerate(steps) if s["id"] == stage), None)
+        require(index is not None, "步骤不存在。")
+        snapshot = read_json(run / "workflow-live.json", {})
+        require(snapshot.get("connected") and 0 <= time.time() - snapshot.get("at", 0) < 20,
+                "宿主观察器未连接或已过期；刷新状态后重试。")
+        rows = {s["id"]: s for s in snapshot.get("steps", [])}
+        require(set(rows) == {s["id"] for s in steps}, "阶段状态不完整，请刷新。")
+        for item in rows.values():
+            task = item.get("task") or {}
+            # ID-only entries can reuse completion evidence only from that task.
+            attempts = [{**task, **attempt} if attempt.get("id") == task.get("id") else attempt
+                        for attempt in item.get("attempts", [])]
+            require(all(attempt.get("done") is True for attempt in ([task] if task else []) + attempts),
+                    "原生任务尚未成功结束，请等待全部执行尝试终结后重试。")
+        require(not snapshot.get("parent_running") and not snapshot.get("approvals")
+                and not any(s["status"] in {"running", "submitted", "awaiting_check", "awaiting_approval"}
+                            for s in rows.values()),
+                "Session 仍有在途任务或待处理授权/核对，请等待结束后重试。")
+        row = rows[stage]
+        require(row["status"] in {"failed", "check_failed", "accepted"}, "当前阶段不可重试。")
+        require(all(rows[s["id"]]["status"] == "accepted" for s in steps[:index]),
+                "请先完成上游阶段的重试与核对。")
+        receipts = dispatch_receipts(manifest)
+        for step in steps:
+            sid = step["id"]
+            receipt = current_receipt(receipts.get(sid), journal["stages"].get(sid, {}))
+            observed = rows[sid].get("native_request") or {}
+            require(not receipt or receipt["task_id"] == observed.get("task_id"),
+                    "原生派发已更新，请刷新后重试。")
+        old_retry = journal["stages"].get(stage, {})
+        require(not old_retry or snapshot["at"] >= old_retry["requested_at"], "重试已登记，请刷新状态。")
+        require_runtime(manifest["workflow"])
+        validate_model_selection([steps[index]])
+        invalidated = []
+        requested_at = time.time()
+        archive = run / "accepted/previous"
+        archive.mkdir(exist_ok=True)
+        for step in steps[index:]:
+            sid = step["id"]
+            item = rows[sid]
+            accepted_path = run / "accepted" / (sid + ".json")
+            accepted = read_json(accepted_path)
+            receipt = item.get("native_request") or {}
+            task_id = (item.get("task") or {}).get("id") or receipt.get("task_id")
+            excluded = set(journal["stages"].get(sid, {}).get("excluded_task_ids", []))
+            excluded.update(t["id"] for t in item.get("attempts", []))
+            excluded.update(v for v in [task_id, (accepted or {}).get("task_id"),
+                                       (receipts.get(sid) or {}).get("task_id")] if v)
+            conversation = receipt.get("conversation") or receipt.get("origin_task_id") or receipt.get("task_id")
+            can_continue = (bool(conversation) and bool(re.fullmatch(r"[a-f0-9]{8,}", conversation))
+                            and receipt.get("agent") == TOOLS[step["tool"]]["agent"]
+                            and receipt.get("model") == step["model"]
+                            and receipt.get("reasoning_effort", "") == step["effort"]
+                            and (item.get("route") or {}).get("actual_backend") == TOOLS[step["tool"]]["backend"])
+            journal["stages"][sid] = {
+                "stage": sid, "source_stage": stage, "request_id": request_id,
+                "requested_at": requested_at, "previous_task_id": task_id,
+                "excluded_task_ids": sorted(excluded),
+                "mode": "spawn_continue" if can_continue else "spawn_run",
+                "conversation": conversation if can_continue else None,
+            }
+            if accepted:
+                write_json(archive / (sid + "-" + request_id + ".json"), accepted)
+                if sid != stage:
+                    invalidated.append(sid)
+            # Preserve prior deliverables, but require the worker to write a
+            # handoff for this attempt before the existing checkpoint can pass.
+            history = run / "retry-history" / request_id / sid
+            history.mkdir(parents=True, exist_ok=True)
+            for suffix in ("-handoff.md", "-result.txt"):
+                source = run / "workspace" / (sid + suffix)
+                if source.is_file():
+                    (history / source.name).write_bytes(source.read_bytes())
+        command = "python3 " + shlex.quote(str(ROOT / "workflow.py"))
+        hint = (
+            "重试已登记。请在此 Session 的 KiroCrew 对话中继续：执行 " + command +
+            " next " + shlex.quote(str(run)) +
+            "；wait=true 时等待现有原生任务，禁止重复派发。否则按 tool 字段调用原生 spawn_continue"
+            "（参数 continue）或 spawn_run（参数 spawn）。仅当原生明确拒绝续接且确认未派发时，"
+            "可用同一 spawn 参数重建；结果不明确时停止并核实。完成后用新 task-id 执行 " + command +
+            " accept " + shlex.quote(str(run)) +
+            " --task-id <新ID>；检查通过后才能 next。失败如实停止，不能跳过检查。"
+        )
+        result = {"ok": True, "run": manifest["id"], "stage": stage, "request_id": request_id,
+                  "invalidated": invalidated, "next_hint": hint}
+        journal["requests"][request_id] = result
+        # One atomic barrier makes every old task/receipt in the suffix stale,
+        # even if the process stops before the obsolete files are removed.
+        write_json(run / "retry-state.json", journal)
+        for step in steps[index:]:
+            sid = step["id"]
+            (run / "accepted" / (sid + ".json")).unlink(missing_ok=True)
+            for suffix in ("-handoff.md", "-result.txt"):
+                (run / "workspace" / (sid + suffix)).unlink(missing_ok=True)
+            rows[sid].update(status="pending", task=None, native_request=None, route=None,
+                             accepted=None, check_error=None, requested_model="", resolved_model="",
+                             model_mismatch=False, effort_observation={"value": None, "source": "not_reported"},
+                             retry=journal["stages"][sid])
+        snapshot.update(status="ready", steps=list(rows.values()), retry=result, at=requested_at)
+        write_json(run / "workflow-live.json", snapshot)
+        write_json(run / "workflow-report.json", snapshot)
+        return result
+
+
 def marker(manifest, step_id):
     return f"[WORKFLOW:{manifest['id']} STEP:{step_id}]"
 
@@ -247,15 +381,17 @@ def control_prompt(manifest):
 配置源 {DEFINITIONS / (workflow['id'] + '.json')}；本次固定 r{workflow['revision']}。
 运行快照 {run}/workflow-run.json；所有子任务 cwd={run}/workspace。
 这里的配置优先决定工具和任务顺序，不要套用默认的固定四步骤。
-你只协调，使用 KiroCrew 原生 spawn_run；不要自行启动 Coding CLI 或访问 owner token。
+你只协调，使用 KiroCrew 原生 spawn_run/spawn_continue；不要自行启动 Coding CLI 或访问 owner token。
 需求入口：
 如果用户给出开发需求且 input.json 不存在，将原始需求写入 {run}/user-input.txt，
 执行 {command} capture {qrun} --input-file {shlex.quote(run + '/user-input.txt')}。
 如果已经存在 input.json，继续执行已冻结需求。
 执行协议：
-1. 运行 {command} next {qrun}。输出 spawn 字段就是下一步原生 spawn_run 的精确参数。
-2. 完整传递 task、agent、model、reasoning_effort、cwd 等字段。不要省略或改写模型和 Effort。
-3. 调用一次 spawn_run 后结束 turn，等待原生 completion event。不要循环轮询。
+1. 运行 {command} next {qrun}。wait=true 时等待现有任务，不重复派发。
+   tool=spawn_continue 时完整传递 continue 字段，续接原属主会话；否则传递 spawn 字段调用 spawn_run。
+2. spawn_run 完整传递 task、agent、model、reasoning_effort、cwd 等字段，不省略或改写模型和 Effort。
+   spawn_continue 只传递 continue 中的原生字段，模型和 Effort 继承原属主会话。
+3. 调用一次原生工具后结束 turn，等待 completion event。不要循环轮询。
 4. 完成后运行 {command} accept {qrun} --task-id <真实返回的本次 task-id>。
    accept 根据宿主观察器的原生任务、真实后端和模型核对归属；失败必须报告并停止。
 5. accept 成功后再次 next，直到 done=true。最后汇总真实 ID、产物、验证局限与看板地址。
@@ -269,7 +405,7 @@ def control_prompt(manifest):
 再运行 {command} save {shlex.quote(run + '/workflow-draft.json')} --expected-revision <当前版本>。
 保存成功后报告新版本，并明确只对下次运行生效。不得修改本次 workflow-run.json。
 用户无需自己写 Plan.md 或 Tasks；这些是工作者根据需求产生的输出。
-当前 PoC 仅在指定工作目录做本地 Web 开发/分析，不安装依赖、不提交、不发布。
+按用户已授权范围开发、安装项目依赖与验证；提交、推送和发布仍需用户明确授权。
 权限请求保留在 KiroCrew App；遇到权限拒绝如实报告，不规避。
 看板：http://127.0.0.1:{PORT}/?run={manifest['id']}
 """
@@ -321,6 +457,11 @@ def submit(manifest, requirement):
 
 
 def next_step(run):
+    with run_lock(run):
+        return _next_step(run)
+
+
+def _next_step(run):
     manifest = load_run(run)
     require_runtime(manifest["workflow"])
     request = read_json(run / "input.json")
@@ -328,9 +469,11 @@ def next_step(run):
             "请先登记用户输入。")
     history = []
     receipts = dispatch_receipts(manifest)
+    retries = retry_state(run)["stages"]
     for step in manifest["workflow"]["steps"]:
-        completed = read_json(run / "accepted" / f"{step['id']}.json")
-        latest_receipt = receipts.get(step["id"])
+        retry = retries.get(step["id"], {})
+        completed = current_receipt(read_json(run / "accepted" / f"{step['id']}.json"), retry)
+        latest_receipt = current_receipt(receipts.get(step["id"]), retry)
         if completed and latest_receipt and completed["task_id"] != latest_receipt["task_id"]:
             completed = None
         if completed:
@@ -349,12 +492,18 @@ def next_step(run):
             f"{marker(manifest, step['id'])}\n"
             f"用户原始需求：\n{request['text']}\n\n"
             f"你的任务：{step['prompt']}\n"
-            f"工作目录：{run / 'workspace'}。所有工作限定在此目录，不安装依赖，不发布或提交。"
+            f"工作目录：{run / 'workspace'}。在授权范围内准备项目依赖、开发和验证；发布或提交需明确授权。"
             "不要派生子任务。需要计划/测试/任务文件时自行生成，不要求用户手写。\n"
             f"前序结果：\n{chr(10).join(history) if history else '无，这是第一步。'}\n"
             f"实际执行完成后，把交接说明写到 {output}，并在最终回答中报告文件和真实验证结果。"
             "如遇阻塞或质量不通过，明确写出 BLOCKED，不得伪造完成。"
         )
+        if retry:
+            instructions += (
+                "\n这是阶段重试。旧 Task 和旧交接已经失效，必须重新执行验证并写出本次交接。"
+                f"旧产物保留在 {run / 'retry-history' / retry['request_id'] / step['id']}。"
+                "已完成阶段的优化遵循原始需求；若有阻断问题，如实报告。"
+            )
         if step["tool"] == "opencode":
             instructions += (
                 "\n本机兼容性：KiroCrew 当前 ACP Client 不处理 fs/write_text_file。"
@@ -372,7 +521,7 @@ def next_step(run):
             "指令文件包含你的完整任务、前序交接及原生完整返回文件路径，必须依次读取相关文件。\n"
             f"用户需求摘要：{request['text'][:800]}\n"
             f"本步任务摘要：{step['prompt'][:800]}\n"
-            f"只在 {run / 'workspace'} 操作，不安装依赖、不发布、不提交、不派生子任务。"
+            f"只在 {run / 'workspace'} 操作，按授权准备项目依赖和验证，不发布、不提交、不派生子任务。"
             f"实际完成后写交接文件 {output}，最终返回真实执行与验证结果。"
             "若确实阻塞，在单独一行写 BLOCKED 并说明原因。完整需求以文件为准。"
         )
@@ -383,10 +532,16 @@ def next_step(run):
                  "cwd": str(run / "workspace"), "keep": True, "include_memory": False,
                  "solo_reason": "user_requested",
                  "solo_details": "用户明确要求按自定义 Workflow 逐步调用所选择的 Coding 工具、模型和 Effort。"}
+        dispatch = {"done": False, "step": step["id"], "spawn": spawn,
+                    "tool": retry.get("mode", "spawn_run")}
+        if dispatch["tool"] == "spawn_continue":
+            dispatch["continue"] = {"conversation": retry["conversation"], "task": prompt}
+        if retry and latest_receipt:
+            dispatch.update(wait=True, task_id=latest_receipt["task_id"])
         write_json(run / ("dispatch-" + step["id"] + ".json"),
                    {"step": step["id"], "workflow_sha256": manifest["workflow_sha256"],
-                    "spawn": spawn, "created_at": time.time()})
-        return {"done": False, "step": step["id"], "spawn": spawn}
+                    **dispatch, "created_at": time.time()})
+        return dispatch
     return {"done": True, "run": manifest["id"], "steps": len(history),
             "report": str(run / "workflow-report.json")}
 
@@ -402,10 +557,15 @@ def _accept(run, task_id):
     snapshot = read_json(run / "workflow-live.json", {})
     require(snapshot.get("connected") and 0 <= time.time() - snapshot.get("at", 0) < 20,
             "宿主观察器未连接或已过期；启动 workflow.py serve 后重试。")
-    active = next_step(run)
+    active = _next_step(run)
     require(not active["done"], "所有步骤已完成。")
     row = next(s for s in snapshot["steps"] if s["id"] == active["step"])
     task = row.get("task") or {}
+    retry = retry_state(run)["stages"].get(active["step"], {})
+    require(task_id not in retry.get("excluded_task_ids", [])
+            and snapshot["at"] >= retry.get("requested_at", 0)
+            and active.get("task_id", task_id) == task_id,
+            "旧候选已失效，必须使用重试后新的原生任务。")
     require(task.get("id") == task_id and task.get("parent") == manifest["parent"],
             "真实任务不属于当前步骤/父会话。")
     require(task.get("done") and not task.get("error") and not task.get("stopped"),
@@ -431,9 +591,11 @@ def _accept(run, task_id):
             "后端报告的 Effort 与配置不同；停止并查看 App。")
     require(not re.search(r"(?im)^\s*(?:[-*]\s*)?(?:状态[：:]\s*)?BLOCKED\b",
                           task.get("result", "")),
-            "工作者报告 BLOCKED，请在 App 处理后开启新运行。")
+            "工作者报告 BLOCKED，请在 App 处理后重试此阶段。")
     handoff = run / "workspace" / (row["id"] + "-handoff.md")
     require(handoff.is_file() and handoff.stat().st_size > 0, "工作者缺少交接文件。")
+    require(not retry or handoff.stat().st_mtime >= retry["requested_at"],
+            "交接文件属于旧候选，请重新写出本次交接。")
     receipt = {"step": row["id"], "task_id": task_id, "at": time.time(),
                "result": task.get("result", ""), "route": row["route"],
                "requested_model": row.get("requested_model"), "resolved_model": row.get("resolved_model"),
@@ -452,6 +614,11 @@ def _accept(run, task_id):
 
 
 def accept(run, task_id):
+    with run_lock(run):
+        return _check_and_accept(run, task_id)
+
+
+def _check_and_accept(run, task_id):
     require(bool(re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", task_id)), "Invalid task ID")
     checks = run / "checks"
     checks.mkdir(exist_ok=True)
@@ -552,16 +719,25 @@ def dispatch_receipts(manifest):
 
 
 def project(run, tasks, parent, approvals):
+    with run_lock(run):
+        return _project(run, tasks, parent, approvals)
+
+
+def _project(run, tasks, parent, approvals):
     manifest = load_run(run)
     receipts = dispatch_receipts(manifest)
+    retries = retry_state(run)
     rows = []
     for step in manifest["workflow"]["steps"]:
-        receipt = receipts.get(step["id"])
+        retry = retries["stages"].get(step["id"], {})
+        receipt = current_receipt(receipts.get(step["id"]), retry)
         selected = [task_identity(t) for t in tasks
                     if t.get("parent") == manifest["parent"]
                     and (marker(manifest, step["id"]) in t.get("task", "")
                          or receipt and t.get("id") == receipt["task_id"])]
-        task = max(selected, key=lambda t: t.get("started", 0)) if selected else None
+        eligible = [t for t in selected if t["id"] not in retry.get("excluded_task_ids", [])
+                    and (not retry or receipt and t["id"] == receipt["task_id"])]
+        task = max(eligible, key=lambda t: t.get("started", 0)) if eligible else None
         route = route_for(task) if task else None
         stored = read_json(Path.home() / f".kiro/crew/subagents/{task['id']}/state.json", {}) if task else {}
         actual = stored.get("resolved_model", "")
@@ -572,7 +748,7 @@ def project(run, tasks, parent, approvals):
         }
         if step["tool"] == "codex" and route:
             effort_observation = codex_turn_evidence(route.get("native_session_id")) or effort_observation
-        accepted = read_json(run / "accepted" / f"{step['id']}.json")
+        accepted = current_receipt(read_json(run / "accepted" / f"{step['id']}.json"), retry)
         if accepted and receipt and accepted["task_id"] != receipt["task_id"]:
             accepted = None
         evidence_source = "native live task"
@@ -594,7 +770,7 @@ def project(run, tasks, parent, approvals):
             "awaiting_check" if task and task.get("done") else "running" if task else
             "submitted" if receipt else "pending")
         rows.append({**step, "task_uid": f"{manifest['id']}/{step['id']}",
-                     "status": state, "task": task, "route": route,
+                     "status": state, "task": task, "route": route, "retry": retry or None,
                      "native_request": receipt,
                      "evidence_source": evidence_source,
                      "check_error": check.get("error"),
@@ -631,12 +807,14 @@ def project(run, tasks, parent, approvals):
                     if (run / "workspace" / name).is_file()), None)
     return {"manifest": manifest, "at": time.time(), "connected": True, "preview": preview,
             "steps": rows, "parent_running": parent.get("running", False),
+            "retry": next(reversed(retries["requests"].values()), None),
             "approvals": own_approvals, "input": read_json(run / "input.json", {}),
             "intake": read_json(run / "intake.json", {}),
             "status": "completed" if completed else "awaiting_approval" if own_approvals else
                       "failed" if any(r["status"] == "failed" for r in rows) else
                       "check_failed" if any(r["status"] == "check_failed" for r in rows) else
-                      "running" if any(r["task"] or r["native_request"] for r in rows) or parent.get("running") else "ready"}
+                      "running" if any(r["status"] in {"running", "submitted", "awaiting_check"}
+                                       for r in rows) or parent.get("running") else "ready"}
 
 
 def observe():
@@ -653,9 +831,10 @@ def observe():
                 try:
                     manifest = load_run(run)
                     parent = gateway.get("/api/chat/slots/" + manifest["slot"])
-                    snapshot = project(run, tasks, parent, approvals)
-                    write_json(run / "workflow-live.json", snapshot)
-                    write_json(run / "workflow-report.json", snapshot)
+                    with run_lock(run):
+                        snapshot = _project(run, tasks, parent, approvals)
+                        write_json(run / "workflow-live.json", snapshot)
+                        write_json(run / "workflow-report.json", snapshot)
                 except Exception as exc:
                     previous = read_json(run / "workflow-live.json", {})
                     write_json(run / "workflow-live.json", {**previous, "connected": False, "error": str(exc)})
@@ -758,7 +937,7 @@ def serve(port=PORT):
             url = urlsplit(self.path)
             query = parse_qs(url.query)
             try:
-                if url.path in {"/", "/workflow.css", "/workflow.js", "/workflow-view.css",
+                if url.path in {"/", "/workflow.css", "/workflow.js", "/workflow-progress.js", "/workflow-view.css",
                                 "/workflow-view.js", "/workflow-templates.json",
                                 "/crew-entry.html", "/crew-entry.js"}:
                     name = "workflow.html" if url.path == "/" else url.path[1:]
@@ -825,6 +1004,9 @@ def serve(port=PORT):
                     return self.respond({"url": api.chat_entry_url(job["slot"])})
                 if path == "/api/app-entry":
                     return self.respond(app_entry(run_path(body.get("run", ""))))
+                if path == "/api/retry":
+                    return self.respond(retry_stage(run_path(body.get("run", "")),
+                                                    body.get("stage", ""), body.get("request_id", "")))
                 if path in {"/api/prepare", "/api/start"}:
                     request_id = body.get("request_id", "")
                     require(bool(re.fullmatch(r"[a-zA-Z0-9-]{8,80}", request_id)), "缺少请求 ID。")

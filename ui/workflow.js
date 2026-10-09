@@ -21,6 +21,8 @@ let selected=0, stage=Number.isInteger(saved.build?.stage)?Math.max(0,Math.min(2
 let dirty=false,busy=false,runtimeReady=false,builderActive=!!saved.build?.active,sessionFilter="all";
 let pollBusy=false,refreshBusy=false,configSequence=0,sessionRenderKey="",tasksRenderKey="",stageRenderKey="";
 let lifecycleIntent=null,lifecycleBusy=false,lifecycleScroll=0,builderBackdropDown=false;
+let retryBusy=false;
+const retryRequests=new Map();
 let suggestedInput=typeof saved.build?.suggestedInput==="string"?saved.build.suggestedInput:"";
 let templateCategory="quick";
 const templateCategories={quick:"快速验证",web:"Web 原型",engineering:"工程实现",existing:"已有代码"};
@@ -42,7 +44,8 @@ const runtimeSteps=()=>{const data=current();return data?.steps?.length?data.ste
   const waiting=s.task?.awaiting_approval||(key&&data.approvals?.some(a=>(a.session_key||a.session)===key));
   return s.status==="running"&&waiting?{...s,status:"awaiting_approval"}:s;
 }):(data?.manifest?.workflow.steps||[]).map(s=>({...s,status:"pending"}));};
-function progress(data){const rows=data?.steps||[];return {total:data?.manifest?.workflow.steps.length||0,done:rows.filter(s=>s.status==="accepted").length};}
+function progress(data){return WorkflowProgress.calculate(data);}
+function sessionLabel(data){return data?.retry&&data.status==="ready"?"等待续作":labels[data?.status]||"等待输入";}
 function runTitle(m,data){return (data?.input?.text||"").trim().split("\n")[0].slice(0,85)||`${m.workflow.name} · 等待输入`;}
 function setPill(id,status){$(id).textContent=labels[status]||status;$(id).className="status-pill "+status;}
 function sideClose(){delete document.body.dataset.sidebar;$("side-backdrop").hidden=true;$("toggle-sessions").setAttribute("aria-expanded","false");$("toggle-tasks").setAttribute("aria-expanded","false");}
@@ -80,11 +83,14 @@ function renderSessions(){
     header.append(toggle,edit);group.append(header);
     const body=el("div",undefined,"workflow-sessions");body.id="sessions-of-"+g.id;body.hidden=!expanded;
     if(deletedFlows[g.id])body.append(el("p","工作流已删除，可在编辑中恢复。","list-empty"));
-    for(const m of children){const d=snapshots.get(m.id),p=progress(d),state=d?.status||"ready",row=el("div",undefined,"session-row"+(managingSessions?" selectable":""));
+    for(const m of children){const d=snapshots.get(m.id),p=progress(d||{manifest:m}),state=d?.status||"ready",row=el("div",undefined,"session-row"+(managingSessions?" selectable":""));
       if(managingSessions){const checkbox=el("input");checkbox.type="checkbox";checkbox.checked=selectedRuns.has(m.id);checkbox.setAttribute("aria-label","选择 Session "+m.id);
       checkbox.onchange=()=>{if(checkbox.checked)selectedRuns.add(m.id);else selectedRuns.delete(m.id);renderSessions();};row.append(checkbox);}
       const b=button(undefined,()=>chooseRun(m.id),"session-item"+(m.id===activeRun?" active":""));b.dataset.run=m.id;b.setAttribute("aria-current",String(m.id===activeRun));b.title=runTitle(m,d)+"\n"+m.id;
-      const meta=el("p");meta.append(el("span",m.session_meta?.archived?"已归档":labels[state]||state,"session-state "+state),el("span",`${p.done}/${p.total||m.workflow.steps.length}`));
+      const meta=el("p"),status=el("span",undefined,"session-state with-cycle "+state);
+      const label=m.session_meta?.archived?"已归档":sessionLabel(d);
+      status.append(WorkflowProgress.cycle(p,m.session_meta?.archived?"archived":state,label),el("span",label));
+      meta.append(status,el("span",p.done+"/"+p.total));
       const date=new Date(m.created_at*1000).toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
       b.append(el("strong",runTitle(m,d)),el("small",`${date} · r${m.workflow.revision}`,"session-date"),meta);row.append(b);body.append(row);}
     if(!children.length)body.append(el("p","尚无 Session，编辑工作流后开始。","list-empty"));group.append(body);return group;}));
@@ -103,6 +109,7 @@ async function refreshSessions(){if(refreshBusy)return;refreshBusy=true;try{
 async function chooseRun(id,{preserveDraft=false}={}){const m=runs.find(r=>r.id===id);if(!preserveDraft&&m&&config?.id!==m.workflow.id){try{await loadConfig(m.workflow.id);}catch(e){notice(e.message,true);}}activeRun=id;if(m)collapsedFlows.delete(m.workflow.id);selectedTask="";taskScope="current";tasksRenderKey="";history.replaceState(null,"","?run="+encodeURIComponent(id));sideClose();renderSessions();renderBoard();await poll();}
 window.addEventListener("popstate",()=>{activeRun=new URLSearchParams(location.search).get("run")||"";selectedTask="";renderBoard();renderSessions();poll();});
 function activity(s){if(s.model_mismatch&&s.status==="check_failed")return `执行已返回，但模型核对未通过。请求 ${s.model}，实际 ${s.resolved_model}。请选择支持的模型，再建立新运行。`;
+  if(s.retry&&s.status==="pending")return "旧候选已失效，等待在 KiroCrew 中继续执行并重新核对交接。";
   if(s.check_error)return s.check_error;if(s.task?.error)return s.task.error;
   if(s.status==="accepted")return "交接已核对，结果与产物已保存。";
   if(s.status==="awaiting_approval"||s.task?.awaiting_approval)return "等待在 KiroCrew 中批准工具操作。";
@@ -143,12 +150,12 @@ function renderEvidence(s){$("evidence").textContent=!s?"等待原生任务记�
 function renderBoard(){const data=current(),m=data?.manifest,rows=runtimeSteps(),p=progress(data);
   document.querySelector(".overview").dataset.status=data?.status||"ready";
   $("empty-state").hidden=!!m;$("view-progress").hidden=!m||view!=="progress";$("view-evidence").hidden=!m||view!=="evidence";$("view-report").hidden=!m||view!=="report";
-  const percent=p.total?Math.round(p.done/p.total*100):0;$("overall-percent").textContent=percent+"%";$("overall-progress").value=percent;$("overall-count").textContent=`${p.done} / ${p.total} 项任务已交接`;
+  const percent=p.percent;$("overall-percent").textContent=percent+"%";$("overall-progress").value=percent;$("overall-count").textContent=p.done+" / "+p.total+" 项任务已交接 · 按阶段完成度估算";
   $("running-count").textContent=rows.filter(s=>s.status==="running").length;$("waiting-count").textContent=rows.filter(s=>["pending","submitted"].includes(s.status||"pending")).length;$("approval-count").textContent=data?.approvals?.length||0;
   $("session-title").textContent=m?runTitle(m,data):"构建工作流，开始开发";$("session-title").title=m?runTitle(m,data):"";
   $("overview-caption").textContent=m?m.workflow.name+" / Session 开发进度":"先构建工作流，再跟踪开发状态";
   $("connection").classList.toggle("connected",!!data&&data.connected!==false);$("connection").textContent=data?.connected===false?"Gateway 暂时不可达":data?"本机 Gateway 已连接":"本机工作台";
-  setPill("status",data?.status||"ready");$("mobile-status").textContent=labels[data?.status]||"开发工作台";
+  setPill("status",data?.status||"ready");$("status").textContent=sessionLabel(data);$("mobile-status").textContent=data?sessionLabel(data):"开发工作台";
   $("run-caption").title=m?.id||"";$("run-caption").textContent=m?`Session ${new Date(m.created_at*1000).toLocaleString("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})} · 固定 r${m.workflow.revision}`:"选择一个 Session，或构建新工作流";
   $("updated").textContent=data?.at?"更新 "+timeLabel(data.at):"";
   $("app-link").hidden=!m;$("report").hidden=!m;$("export-current-session").hidden=!m;$("session-menu").hidden=!m;$("new-session").hidden=!m;$("archive-current-session").textContent=runs.find(r=>r.id===activeRun)?.session_meta?.archived?"恢复 Session":"归档 Session";
@@ -160,6 +167,12 @@ function renderBoard(){const data=current(),m=data?.manifest,rows=runtimeSteps()
   const trackKey=JSON.stringify([selectedTask,rows.map(s=>[s.id,s.name,s.status])]);
   if(trackKey!==stageRenderKey){stageRenderKey=trackKey;$("stage-track").replaceChildren(...rows.map((s,i)=>{const b=button(undefined,()=>selectTask(s.id),"stage-stop "+(s.status||"pending"));b.setAttribute("aria-current",String(selectedTask===s.id));b.setAttribute("aria-label",`进度：${s.name} ${labels[s.status]||"待执行"}`);b.append(el("span",s.status==="accepted"?"✓":String(i+1),"stage-indicator"),el("strong",s.name),el("small",labels[s.status]||"待执行"));return b;}));}
   const focus=rows.find(s=>s.id===selectedTask);$("task-focus").hidden=!focus;
+  $("focus-retry").hidden=!focus||!["failed","check_failed","accepted"].includes(focus.status);
+  $("focus-retry").textContent=focus?.status==="accepted"?"优化重试":"重试此阶段";
+  $("focus-retry").disabled=retryBusy||data.connected===false||!!data.parent_running||
+    !!data.approvals?.length||rows.some(s=>["running","submitted","awaiting_check","awaiting_approval"].includes(s.status));
+  $("focus-retry").title="重新执行此阶段；下游已完成结果会失效并需要重新验证。";
+  $("copy-retry").hidden=!data.retry;
   if(focus){$("task-focus").dataset.status=focus.status||"pending";$("focus-caption").textContent=focus.status==="running"?"正在开发":"任务状态";$("focus-name").textContent=focus.name;setPill("focus-status",focus.status||"pending");$("focus-activity").textContent=activity(focus);$("focus-agent").textContent=toolLabels[focus.tool]||focus.tool;$("focus-model").textContent=focus.resolved_model||`未报告（请求 ${focus.model}）`;$("focus-effort").textContent=focus.effort_observation?.value||`未报告 · ${focus.effort?"请求 "+focus.effort:"继承默认"}`;$("focus-task-id").textContent=`Task ID：${activeRun}/${focus.id}\n原生执行：${focus.task?.id||"尚未分派"}`;}
   WorkflowView.activities(activeRun,rows,activity,initials,timeLabel,id=>{selectTask(id);setView("progress");});
   const mismatch=rows.find(s=>s.model_mismatch&&s.status==="check_failed");
@@ -170,6 +183,27 @@ function renderBoard(){const data=current(),m=data?.manifest,rows=runtimeSteps()
   $("preview").hidden=!data.preview;if(data.preview)$("preview").href="http://localhost:8917/p/"+encodeURIComponent(activeRun)+"/"+data.preview;
   renderEvidence(focus);renderTasks();
 }
+async function retryFocusedStage(){
+  if(retryBusy)return;
+  const data=current(),run=activeRun,stage=selectedTask,key=run+"/"+stage;
+  if(!data||!runtimeSteps().some(s=>s.id===stage&&["failed","check_failed","accepted"].includes(s.status)))return;
+  if(!retryRequests.has(key))retryRequests.set(key,crypto.randomUUID());
+  retryBusy=true;renderBoard();
+  try{
+    const result=await post("/api/retry",{run,stage,request_id:retryRequests.get(key)});
+    retryRequests.delete(key);
+    notice("已请求重试，请在 KiroCrew 中继续执行。"+
+      (result.invalidated.length?"需重新验证的下游阶段："+result.invalidated.join("、")+"。":"")+
+      "可点击“复制续作指令”，粘贴到原会话。");
+    await poll();
+  }catch(e){notice(e.message,true);}
+  finally{retryBusy=false;renderBoard();}
+}
+$("focus-retry").onclick=retryFocusedStage;
+$("copy-retry").onclick=async()=>{
+  try{await navigator.clipboard.writeText(current().retry.next_hint);notice("续作指令已复制，请粘贴到此 Session 的 KiroCrew 对话。");}
+  catch(e){notice("复制失败："+e.message,true);}
+};
 function setView(next){view=next;for(const name of ["progress","evidence","report"]){$("tab-"+name).setAttribute("aria-selected",String(name===view));$("tab-"+name).tabIndex=name===view?0:-1;}renderBoard();}
 $("tab-report").onclick=()=>setView("report");$("tab-progress").onclick=()=>setView("progress");$("tab-evidence").onclick=()=>setView("evidence");$("focus-records").onclick=()=>setView("evidence");
 async function poll(){if(!activeRun||pollBusy)return;pollBusy=true;const id=activeRun;try{const data=await get("/api/state?run="+encodeURIComponent(id));snapshots.set(id,data);if(id===activeRun){renderBoard();renderSessions();}}catch(e){if(id===activeRun){WorkflowView.disconnect();$("connection").textContent="连接异常";$("connection").classList.remove("connected");$("updated").textContent=e.message;}}finally{pollBusy=false;}}

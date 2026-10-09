@@ -17,6 +17,10 @@ EC2 自动部署、可靠后台调度、Dev Teams 多人协作和 GitHub / GitLa
 - Workflow 包含 Sessions，Session 包含 Tasks；编辑生成新版本，当前运行保持原快照。
 - Session 导出、工作台归档 / 恢复，工作流可恢复删除，保留原生历史对话。
 - 蓝白工作台、可调整侧栏、任务进度、状态报告与产物预览。
+- Session 环形进度显示已核对阶段的百分比；仅运行中闪烁，支持减少动态效果设置。
+- 失败或已交接阶段可单独重试；保留旧证据，使下游结论失效，在原 KiroCrew 会话续作并重新核对。
+- 新增可移植三阶段配置：Kiro CLI 需求分析 → Codex 开发 → Claude Code 测试验证。
+  见 [增强说明](docs/enhancement/CHANGES.md)；“Fabel 5.1”为未核实偏好，实际配置使用 `auto`。
 
 ```mermaid
 flowchart LR

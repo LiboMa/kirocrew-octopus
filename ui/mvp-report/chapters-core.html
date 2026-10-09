@@ -76,9 +76,14 @@
     <li><strong>Web：</strong>向导把配置送入同一保存逻辑，不单独维护一套可绕过版本检查的定义。</li>
   </ul>
   <div class="callout amber"><svg class="icon"><use href="#i-clock"/></svg><div><strong>冻结时刻是“准备 Run”，不一定是发送需求之后</strong><p>若先创建 App 对话，再在 Chat 中修改工作流，旧对话仍属于准备时的快照。要使用新版本，需要从工作台建立一次新运行。</p></div></div>
-  <h3>四种实例模板</h3>
-  <div class="template-line"><span>Web 应用四工具交付</span><span>Bug 修复与回归</span><span>双工具代码审查</span><span>Go API 与 Web 工作台</span></div>
-  <p>模板使用 <code>model=auto</code>、空 Effort 作为可移植起点。实际模型仍由目标工具和账号决定，模板本身不保证目标环境已安装语言运行时或依赖。</p>
+  <h3>12 个模板，按验证目标选择</h3>
+  <div class="table-wrap"><table><thead><tr><th>分类</th><th>预定义模板</th><th>适合验证什么</th></tr></thead><tbody>
+    <tr><td>快速验证</td><td>Kiro 最小闭环、编码与审查最小验证、想法与验收清单</td><td>用 1–2 个任务先验证一个想法或工具交接</td></tr>
+    <tr><td>Web 原型</td><td>产品落地页、团队任务看板、CSV 数据概览、Web 四工具交付</td><td>交付可操作的本地页面</td></tr>
+    <tr><td>工程实现</td><td>Python 命令行工具、Node.js API、Go API 与 Web 工作台</td><td>使用标准库实现业务规则与自动测试</td></tr>
+    <tr><td>已有代码</td><td>Bug 修复与回归、双工具代码审查</td><td>需要先提供本次工作目录中的代码与复现资料</td></tr>
+  </tbody></table></div>
+  <p>模板可以搜索，卡片显示准备条件、产物与工具顺序。选择时建立独立草稿并自动填入名称与示例目标；更换模板更新未修改的示例，保留手写目标。模板使用 <code>model=auto</code>、空 Effort，之后可以继续配置。实际执行仍取决于工具登录和所需语言环境；配置校验通过不等于所有示例都已完成真实执行。</p>
   {{source:validate|查看工作流 Schema 与步骤约束}}
 </section>
 

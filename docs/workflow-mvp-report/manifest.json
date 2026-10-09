@@ -1,14 +1,14 @@
 {
   "report": "Workflow MVP interactive explainer",
-  "source_commit": "a3c0040",
-  "built_at": "2026-10-08T23:37:29+08:00",
+  "source_commit": "bb50f09",
+  "built_at": "2026-10-09T09:45:30+08:00",
   "chapters": 17,
   "standalone_diagrams": 13,
   "embedded_source_snippets": 20,
   "inputs": [
     {
       "path": "WORKFLOW-MVP.md",
-      "sha256": "529e1b8de9144f21719d61b409550d98773705295c16460841c57ff3d24683d2"
+      "sha256": "5c278afb80e0a214f35a7bfb5f0911b0cdca3511a4473bbf1f233eea22af5e11"
     },
     {
       "path": "docs/DEVELOPMENT-HANDBOOK.md",
@@ -16,7 +16,7 @@
     },
     {
       "path": "docs/OPERATIONS.md",
-      "sha256": "b6d6d34ec74179ced8cbb8a363a39866c2c5504960cf88392fda955245f57bcb"
+      "sha256": "9f140a3bc18316299d256d40cf008f542abc8f1e010ba8f3428d0a7f0c196dfa"
     },
     {
       "path": "docs/BASELINE.md",
@@ -24,11 +24,11 @@
     },
     {
       "path": "docs/FEATURES-AND-DECISIONS.md",
-      "sha256": "7fba902006920825b6a5cc4b6f042dd5d18683cd889b869a5d3d4ac00ba91181"
+      "sha256": "e6be59563d94adf6da840ed516d66ce495b18b3d30cceb555bc02c0c51819eec"
     },
     {
       "path": "docs/RELEASE-NOTES.md",
-      "sha256": "8c990327fbe315c335455f129b6b0153ba67fe3979b8aad193d26ba8191b977c"
+      "sha256": "c91e1d46d2fe2c41fb36000b3baa1bf6e542245eff20d5a25e00b9dbe80e50b7"
     },
     {
       "path": "docs/PUBLICATION-VERIFICATION.md",
@@ -71,6 +71,6 @@
       "sha256": "5363081cc14d3a6c7746738b16d198345536a0ae8d7367e729becd6dfea6d0bd"
     }
   ],
-  "html_sha256": "30fd41951540493786996dc4780de76d1b96c9950ae60fbebf52a445417a3dd0",
+  "html_sha256": "68da82c7386a035221e64a87090df030956d4357e534a71fb648cd6af981ae29",
   "mode": "offline explanatory simulation; no native tasks or sessions"
 }

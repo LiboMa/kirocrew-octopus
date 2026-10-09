@@ -21,11 +21,14 @@ let selected=0, stage=Number.isInteger(saved.build?.stage)?Math.max(0,Math.min(2
 let dirty=false,busy=false,runtimeReady=false,builderActive=!!saved.build?.active,sessionFilter="all";
 let pollBusy=false,refreshBusy=false,configSequence=0,sessionRenderKey="",tasksRenderKey="",stageRenderKey="";
 let lifecycleIntent=null,lifecycleBusy=false,lifecycleScroll=0,builderBackdropDown=false;
+let suggestedInput=typeof saved.build?.suggestedInput==="string"?saved.build.suggestedInput:"";
+let templateCategory="quick";
+const templateCategories={quick:"快速验证",web:"Web 原型",engineering:"工程实现",existing:"已有代码"};
 $("requirements").value=typeof saved.build?.input==="string"?saved.build.input:"";
 $("chat-entry").checked=!!saved.build?.chat;
 $("workflow-intent").value=typeof saved.build?.intent==="string"?saved.build.intent:"";
 function persist(){
-  try{localStorage.setItem(STORAGE,JSON.stringify({drafts,collapsedFlows:[...collapsedFlows],requests:[...requests],generation:generation?{id:generation.id,request_id:generation.request_id,intent:generation.intent,applied:!!generation.applied}:null,build:{workflow_id:config?.id||null,layout:3,intent:$("workflow-intent").value,input:$("requirements").value,chat:$("chat-entry").checked,stage,selected,active:builderActive}}));}
+  try{localStorage.setItem(STORAGE,JSON.stringify({drafts,collapsedFlows:[...collapsedFlows],requests:[...requests],generation:generation?{id:generation.id,request_id:generation.request_id,intent:generation.intent,applied:!!generation.applied}:null,build:{workflow_id:config?.id||null,layout:3,intent:$("workflow-intent").value,input:$("requirements").value,suggestedInput,chat:$("chat-entry").checked,stage,selected,active:builderActive}}));}
   catch{$("save-state").textContent="浏览器未能保存草稿，请保持页面打开或导出工作流。";}
 }
 function notice(text,error=false){$("notice-text").textContent=text;$("notice").className=error?"error":"";$("notice").hidden=false;
@@ -97,7 +100,7 @@ async function refreshSessions(){if(refreshBusy)return;refreshBusy=true;try{
   for(const result of results){if(result.status==="fulfilled")snapshots.set(...result.value);}
   renderSessions();if(activeRun)renderBoard();
 }catch(e){notice("Session 列表暂时无法更新："+e.message,true);}finally{refreshBusy=false;}}
-async function chooseRun(id){const m=runs.find(r=>r.id===id);if(m&&config?.id!==m.workflow.id){try{await loadConfig(m.workflow.id);}catch(e){notice(e.message,true);}}activeRun=id;if(m)collapsedFlows.delete(m.workflow.id);selectedTask="";taskScope="current";tasksRenderKey="";history.replaceState(null,"","?run="+encodeURIComponent(id));sideClose();renderSessions();renderBoard();await poll();}
+async function chooseRun(id,{preserveDraft=false}={}){const m=runs.find(r=>r.id===id);if(!preserveDraft&&m&&config?.id!==m.workflow.id){try{await loadConfig(m.workflow.id);}catch(e){notice(e.message,true);}}activeRun=id;if(m)collapsedFlows.delete(m.workflow.id);selectedTask="";taskScope="current";tasksRenderKey="";history.replaceState(null,"","?run="+encodeURIComponent(id));sideClose();renderSessions();renderBoard();await poll();}
 window.addEventListener("popstate",()=>{activeRun=new URLSearchParams(location.search).get("run")||"";selectedTask="";renderBoard();renderSessions();poll();});
 function activity(s){if(s.model_mismatch&&s.status==="check_failed")return `执行已返回，但模型核对未通过。请求 ${s.model}，实际 ${s.resolved_model}。请选择支持的模型，再建立新运行。`;
   if(s.check_error)return s.check_error;if(s.task?.error)return s.task.error;
@@ -260,13 +263,37 @@ for(const field of ["id","name","prompt","model"])$("step-"+field).oninput=e=>{c
 $("step-tool").onchange=e=>{Object.assign(config.steps[selected],{tool:e.target.value,model:"auto",effort:""});markDirty();renderForm();};$("step-effort").onchange=e=>{config.steps[selected].effort=e.target.value;markDirty();};$("workflow-name").oninput=e=>{config.name=e.target.value;markDirty();};
 $("requirements").oninput=()=>{builderActive=true;persist();renderConfigMeta();renderReview();};$("chat-entry").onchange=()=>{persist();renderReview();};
 $("definition").onchange=async e=>{try{await loadConfig(e.target.value);builderActive=true;persist();}catch(error){notice(error.message,true);}};
-function newDefinition(clone){if(busy)return;config=clone?{...copy(config),id:"flow-"+crypto.randomUUID().slice(0,8),revision:0,name:config.name+" · 副本"}:{schema:1,id:"flow-"+crypto.randomUUID().slice(0,8),revision:0,name:"我的工作流",steps:[{id:"first",name:"分析与实现",tool:"kiro",model:"auto",effort:"",prompt:"根据用户需求分析任务并完成实现，实际验证后交接。"}]};config.name=uniqueDraftName(config.name,config.id);selected=0;markDirty();renderConfig();showStage(0);}
+function newDefinition(clone){if(busy)return;++configSequence;config=clone?{...copy(config),id:"flow-"+crypto.randomUUID().slice(0,8),revision:0,name:config.name+" · 副本"}:{schema:1,id:"flow-"+crypto.randomUUID().slice(0,8),revision:0,name:"我的工作流",steps:[{id:"first",name:"分析与实现",tool:"kiro",model:"auto",effort:"",prompt:"根据用户需求分析任务并完成实现，实际验证后交接。"}]};config.name=uniqueDraftName(config.name,config.id);selected=0;markDirty();renderConfig();showStage(0);}
 $("new-workflow").onclick=()=>newDefinition(false);$("copy-workflow").onclick=()=>newDefinition(true);
-function renderTemplates(){$("workflow-templates").replaceChildren(...templates.map(t=>{const b=button(undefined,()=>{if(busy)return;
-  const kept=!!$("requirements").value.trim();config={schema:1,id:"flow-"+crypto.randomUUID().slice(0,8),revision:0,name:uniqueDraftName(t.name),steps:copy(t.steps)};
-  if(!kept)$("requirements").value=t.input;selected=0;markDirty();renderConfig();showStage(0);notice("已从模板建立新草稿。"+(kept?"保留了你已输入的需求。":"已填入示例需求，可直接修改。"));
-},"template-card");b.dataset.template=t.id;
-  b.append(el("strong",t.name),el("p",t.description),el("small",t.steps.map(s=>toolLabels[s.tool]).join(" → ")),el("span","使用模板","template-action"));return b;}));}
+function fillSuggestedInput(value){$("requirements").value=value;suggestedInput=value;$("chat-entry").checked=false;}
+function focusGoal(){$("template-picker").open=false;showStage(0);$("workflow-name").focus({preventScroll:true});$("workflow-name").scrollIntoView({block:"center"});}
+function useTemplate(t){if(busy)return;++configSequence;
+  const input=$("requirements").value.trim(),kept=!!input&&input!==suggestedInput.trim();
+  config={schema:1,id:"flow-"+crypto.randomUUID().slice(0,8),revision:0,name:uniqueDraftName(t.name),steps:copy(t.steps)};
+  if(!kept)fillSuggestedInput(t.input);
+  selected=0;markDirty();renderConfig();focusGoal();
+  notice("已从模板建立新草稿。"+(kept?"保留了你手动填写的开发目标。":"已填入项目名称和示例目标。")+"确认后可编辑任务与 Agent，再开始开发。");
+}
+function renderTemplates(){
+  const search=$("template-search").value.trim().toLowerCase();
+  const rows=templates.filter(t=>(templateCategory==="all"||t.category===templateCategory)&&
+    (!search||[t.name,t.description,t.input,t.prerequisite,t.output,...t.steps.map(s=>toolLabels[s.tool])].join(" ").toLowerCase().includes(search)));
+  $("template-total").textContent=`${templates.length} 个模板 · 复制为新草稿`;
+  $("template-count").textContent=rows.length?`显示 ${rows.length} 个模板；选择后可修改目标、任务及 Agent。`:"没有匹配的模板，请更换关键词或选择「全部」。";
+  $("template-filters").replaceChildren(...Object.entries({all:"全部",...templateCategories}).map(([key,label])=>{
+    const b=button(label,()=>{templateCategory=key;renderTemplates();$("template-filters").querySelector(`[data-category="${key}"]`).focus();});
+    b.dataset.category=key;b.setAttribute("aria-pressed",String(templateCategory===key));return b;
+  }));
+  $("workflow-templates").replaceChildren(...rows.map(t=>{
+    const b=button(undefined,()=>useTemplate(t),"template-card");b.dataset.template=t.id;
+    b.append(el("span",`${t.steps.length} 项任务 · ${templateCategories[t.category]||"示例"}`,"template-meta"),
+      el("strong",t.name),el("p",t.description),el("small","准备："+t.prerequisite,"template-prerequisite"),
+      el("small","产物："+t.output,"template-output"),
+      el("small",t.steps.map(s=>toolLabels[s.tool]).join(" → "),"template-route"),el("span","使用模板","template-action"));
+    return b;
+  }));
+}
+$("template-search").oninput=()=>{if($("template-search").value.trim())templateCategory="all";renderTemplates();};
 $("reload").onclick=async()=>{try{await refreshDefinitions();await loadConfig(config.id,{discard:true});notice("已加载最新保存版本。");}catch(e){notice(e.message,true);}};
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type})),a=el("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 $("export").onclick=async()=>{try{configValid();const format=$("export-format").value,response=await post("/api/workflow/export",{config,format});download(response.content,config.id+"."+(format==="markdown"?"md":format),"text/plain;charset=utf-8");}catch(e){notice(e.message,true);}};
@@ -364,13 +391,14 @@ function renderGeneration(data){
   generationBusy=!!data&&["preparing","submitted","running","waiting","awaiting_approval"].includes(data.status);
   $("apply-generated").hidden=data?.status!=="ready"||!!data?.applied;$("generation-chat").hidden=!data?.id;
   if(data?.id)$("generation-chat").href="/crew-entry.html?design="+encodeURIComponent(data.id);
-  const states={preparing:"正在创建 KiroCrew 生成会话…",submitted:"KiroCrew 已收到意图，等待生成草稿。",running:"Kiro CLI 正在分析意图并编排任务…",waiting:"等待 KiroCrew 返回草稿…",awaiting_approval:"需要在 KiroCrew 中授权："+(data?.permission_title||"工具操作"),ready:`草稿已生成：${data?.config?.steps?.length||0} 项任务。采用后可继续编辑。`,invalid:"生成文件尚未通过格式校验："+(data?.error||""),uncertain:"提交结果待确认，请打开 KiroCrew 查看："+(data?.error||""),needs_attention:data?.error||"请打开 KiroCrew 查看生成结果。"};
+  const states={preparing:"正在创建 KiroCrew 生成会话…",submitted:"KiroCrew 已收到意图，等待生成草稿。",running:"Kiro CLI 正在分析意图并编排任务…",waiting:"等待 KiroCrew 返回草稿…",awaiting_approval:"需要在 KiroCrew 中授权："+(data?.permission_title||"工具操作"),ready:data?.applied?"已采用生成草稿，名称、目标和任务已填入向导，可继续编辑。":`草稿已生成：${data?.config?.name||""}，${data?.config?.steps?.length||0} 项任务。采用后自动填入名称和开发目标。`,invalid:"生成文件尚未通过格式校验："+(data?.error||""),uncertain:"提交结果待确认，请打开 KiroCrew 查看："+(data?.error||""),needs_attention:data?.error||"请打开 KiroCrew 查看生成结果。"};
   $("generation-status").textContent=data?states[data.status]||data.error||"等待生成":"生成只设计流程；确认草稿后再开始开发。";
   if(config)renderActions();
 }
 async function refreshGeneration(){if(!generation?.id||generationPolling)return;generationPolling=true;
-  try{const data=await get("/api/design?id="+encodeURIComponent(generation.id));generation={...generation,...data};renderGeneration(generation);persist();}
-  catch(e){generationBusy=false;$("generation-status").textContent="生成状态暂时不可达："+e.message;if(config)renderActions();}finally{generationPolling=false;}
+  const id=generation.id;
+  try{const data=await get("/api/design?id="+encodeURIComponent(id));if(generation?.id!==id)return;generation={...generation,...data};renderGeneration(generation);persist();}
+  catch(e){if(generation?.id!==id)return;generationBusy=false;$("generation-status").textContent="生成状态暂时不可达："+e.message;if(config)renderActions();}finally{generationPolling=false;}
 }
 $("generate-workflow").onclick=async()=>{const intent=$("workflow-intent").value.trim()||$("requirements").value.trim();
   if(intent.length<3)return notice("请先描述工作流意图或本次开发需求。",true);
@@ -381,8 +409,17 @@ $("generate-workflow").onclick=async()=>{const intent=$("workflow-intent").value
   try{const data=await post("/api/design",{intent,request_id});generation={...data,request_id};persist();renderGeneration(generation);await refreshGeneration();}
   catch(e){generationBusy=false;renderGeneration(generation);notice("未能确认生成提交："+e.message,true);renderActions();}
 };
-$("apply-generated").onclick=()=>{if(!generation?.config)return;config=copy(generation.config);config.name=uniqueDraftName(config.name,config.id);selected=0;generation.applied=true;markDirty();renderConfig();renderGeneration(generation);showStage(1);notice("已采用为独立工作流草稿。请确认每个任务的 Agent、Model 和 Effort，再保存或开始。");};
+$("apply-generated").onclick=()=>{
+  if(busy||generation?.status!=="ready"||!generation.config||generation.applied)return;
+  const intent=generation.intent?.trim();
+  if(!intent)return notice("生成记录缺少原始意图，请重新生成后再采用。",true);
+  ++configSequence;config=copy(generation.config);config.name=uniqueDraftName(config.name,config.id);
+  // Use the intent frozen with this generation, not text edited while it ran.
+  fillSuggestedInput(intent);selected=0;generation.applied=true;
+  markDirty();renderConfig();renderGeneration(generation);focusGoal();
+  notice("已自动填入项目 / 工作流名称、开发目标和任务。请确认目标，再继续配置任务与 Agent。");
+};
 // Keyboard navigation supplements native dialog focus trapping and Escape.
 document.querySelectorAll('[role="tablist"]').forEach(list=>list.addEventListener("keydown",e=>{if(!["ArrowLeft","ArrowRight"].includes(e.key))return;const tabs=[...list.querySelectorAll('[role="tab"]')],i=tabs.indexOf(document.activeElement);if(i<0)return;e.preventDefault();const next=tabs[(i+(e.key==="ArrowRight"?1:-1)+tabs.length)%tabs.length];next.click();next.focus();}));
-async function init(){try{[catalog,templates]=await Promise.all([get("/api/catalogue"),get("/workflow-templates.json")]);renderTemplates();await refreshDefinitions();const id=saved.build?.workflow_id;await loadConfig(id&&(drafts[id]||definitions.some(d=>d.id===id))?id:definitions[0]?.id||"development");selected=Math.min(saved.build?.selected||0,config.steps.length-1);await refreshRuntime();await refreshSessions();if(!Array.isArray(saved.collapsedFlows)){const currentFlow=runs.find(r=>r.id===(activeRun||runs[0]?.id))?.workflow.id;for(const d of definitions)if(d.id!==currentFlow)collapsedFlows.add(d.id);renderSessions();}if(activeRun)await chooseRun(activeRun);else {const first=runs.find(r=>!r.session_meta?.archived&&!deletedFlows[r.workflow.id]);if(first)await chooseRun(first.id);}renderBoard();renderConfigMeta();refreshGeneration();if((!initialRun&&!saved.build)||(!runs.length&&!builderActive))showBuilder(0);}catch(e){notice("工作台加载失败："+e.message,true);}}
+async function init(){try{[catalog,templates]=await Promise.all([get("/api/catalogue"),get("/workflow-templates.json")]);renderTemplates();await refreshDefinitions();const id=saved.build?.workflow_id;await loadConfig(id&&(drafts[id]||definitions.some(d=>d.id===id))?id:definitions[0]?.id||"development");selected=Math.min(saved.build?.selected||0,config.steps.length-1);await refreshRuntime();await refreshSessions();if(!Array.isArray(saved.collapsedFlows)){const currentFlow=runs.find(r=>r.id===(activeRun||runs[0]?.id))?.workflow.id;for(const d of definitions)if(d.id!==currentFlow)collapsedFlows.add(d.id);renderSessions();}const preserveDraft=!!saved.build?.active&&config.id===id;if(activeRun)await chooseRun(activeRun,{preserveDraft});else {const first=runs.find(r=>!r.session_meta?.archived&&!deletedFlows[r.workflow.id]);if(first)await chooseRun(first.id,{preserveDraft});}renderBoard();renderConfigMeta();refreshGeneration();if((!initialRun&&!saved.build)||(!runs.length&&!builderActive))showBuilder(0);}catch(e){notice("工作台加载失败："+e.message,true);}}
 init();setInterval(poll,2000);setInterval(()=>{refreshSessions();refreshRuntime().catch(()=>{});refreshGeneration();},10000);

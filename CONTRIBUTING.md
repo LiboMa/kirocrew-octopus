@@ -19,6 +19,8 @@ python build_pipeline_kit.py
 单元测试使用临时目录和模拟原生 API。不要用 `unittest discover` 替代上述列表：
 `test_routing.py` 会导入原生 KiroCrew 并准备运行环境，它属于单独的集成检查。
 CI 不需要 Coding 工具登录，不启动 Agent，也不使用部署主机的真实 Sessions。
+任务向导的浏览器交互回归见 [tests/README.md](tests/README.md)，使用合成 API，
+覆盖意图采用与模板填充；需要本机 Playwright 和 Chrome。
 
 ## 保留的产品约束
 

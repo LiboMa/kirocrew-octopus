@@ -17,6 +17,7 @@ FILES = [
     "ui/workflow-templates.json", "ui/crew-entry.html", "ui/crew-entry.js",
     "workflow_library.py", "workflow_files.py", "requirements-workflow.txt",
     "test_workflow_library.py", "docs/DEVELOPMENT-HANDBOOK.md",
+    "tests/workflow-wizard.browser.js", "tests/README.md",
     "docs/OPERATIONS.md",
     "docs/FEATURES-AND-DECISIONS.md", "docs/RELEASE-NOTES.md",
     "examples/generated-review-workflow.yaml", "examples/generated-review-workflow.md",

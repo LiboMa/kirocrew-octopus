@@ -258,5 +258,29 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(len(lib.library()["definitions"]), 1)
 
 
+class TemplateTests(unittest.TestCase):
+    def test_catalogue_is_ready_for_existing_workflow_contract(self):
+        templates = json.loads((Path(__file__).parent / "ui/workflow-templates.json").read_text())
+        self.assertEqual(len({t["id"] for t in templates}), len(templates))
+        self.assertEqual(len({w.name_key(t["name"]) for t in templates}), len(templates))
+        self.assertEqual({t["category"] for t in templates},
+                         {"quick", "web", "engineering", "existing"})
+        for template in templates:
+            with self.subTest(template=template["id"]):
+                definition = w.validate({
+                    "schema": 1, "id": template["id"], "name": template["name"],
+                    "steps": template["steps"],
+                })
+                w.text(template["input"], "示例需求", minimum=3, maximum=12000)
+                self.assertTrue(template["prerequisite"].strip())
+                self.assertTrue(template["output"].strip())
+                self.assertTrue(all(s["model"] == "auto" and s["effort"] == ""
+                                    for s in definition["steps"]))
+                # Template metadata stays outside the portable workflow schema.
+                for format in ["json", "yaml", "markdown"]:
+                    self.assertEqual(parse_document(emit_document(definition, format), format),
+                                     definition)
+
+
 if __name__ == "__main__":
     unittest.main()

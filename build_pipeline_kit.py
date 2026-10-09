@@ -14,6 +14,8 @@ FILES = [
     "reload_gateway.py", "test_reload_gateway.py",
     "test_workflow.py", "ui/workflow.html", "ui/workflow.css", "ui/workflow.js",
     "ui/workflow-view.css", "ui/workflow-view.js",
+    "ui/workflow-progress.js", "workflows/ui-optimize-three-stage.json",
+    "docs/enhancement/CHANGES.md",
     "ui/workflow-templates.json", "ui/crew-entry.html", "ui/crew-entry.js",
     "workflow_library.py", "workflow_files.py", "requirements-workflow.txt",
     "test_workflow_library.py", "docs/DEVELOPMENT-HANDBOOK.md",

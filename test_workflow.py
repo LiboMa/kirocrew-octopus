@@ -1,5 +1,6 @@
 """MVP invariants: immutable runs, native parameter contracts and truthful gates."""
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import tempfile
@@ -7,6 +8,7 @@ import time
 import unittest
 from unittest.mock import patch
 import socket
+import subprocess
 import threading
 import urllib.request
 import urllib.error
@@ -270,6 +272,24 @@ class WorkflowTests(unittest.TestCase):
                 mint.assert_not_called()
                 self.assertEqual(call("/api/app-entry", origin=origin)[0], 200)
                 mint.assert_called_once_with(manifest["slot"])
+                run = Path(manifest["run"])
+                _, retry_receipts, _ = self.seed_retry(manifest, run)
+                retry_body = {"run": manifest["id"], "stage": "code", "request_id": "http-retry-1"}
+                with patch.object(w, "dispatch_receipts", return_value=retry_receipts), \
+                        patch.object(w.api, "request") as native_mutation:
+                    self.assertEqual(call("/api/retry", body=retry_body)[0], 403)
+                    self.assertEqual(call("/api/retry", origin=origin,
+                                          body={**retry_body, "stage": "../outside"})[0], 400)
+                    first = call("/api/retry", origin=origin, body=retry_body)
+                    self.assertEqual(first[0], 200)
+                    self.assertTrue(first[1]["ok"])
+                    self.assertEqual(call("/api/retry", origin=origin, body=retry_body), first)
+                    self.assertEqual(call("/api/retry", origin=origin,
+                                          body={**retry_body, "request_id": "http-retry-2"})[0], 400)
+                    state = call("/api/state?run=" + manifest["id"], method="GET")[1]
+                    self.assertEqual(state["steps"][1]["status"], "pending")
+                    self.assertEqual(state["retry"], first[1])
+                    native_mutation.assert_not_called()
                 w.change("development", "code", 1, model="global.anthropic.claude-opus-5-5")
                 body = {"workflow_id": "development", "revision": 2,
                         "request_id": "qa-invalid-model", "input": "不应创建这个任务。"}
@@ -293,6 +313,186 @@ class WorkflowTests(unittest.TestCase):
         definition = w.validate(EXAMPLE)
         self.assertEqual(definition["steps"][2]["model"], "openai.gpt-6-astra")
         self.assertEqual(definition["steps"][2]["effort"], "high")
+
+    def seed_retry(self, manifest, run, statuses=("accepted", "failed", "pending", "pending")):
+        w.capture(run, "验证阶段重试与候选隔离。")
+        rows, receipts, tasks = [], {}, []
+        for i, (step, status) in enumerate(zip(manifest["workflow"]["steps"], statuses)):
+            task_id = "abc0000" + str(i)
+            receipt = {"task_id": task_id, "agent": w.TOOLS[step["tool"]]["agent"],
+                       "model": step["model"], "reasoning_effort": step["effort"]}
+            route = {"actual_backend": step["tool"], "crew_session_key": "subagent:" + task_id}
+            task = {"id": task_id, "parent": manifest["parent"], "agent": receipt["agent"],
+                    "done": status not in {"running", "submitted"}, "started": time.time() - 10,
+                    "task": w.marker(manifest, step["id"]), "result": "真实执行夹具",
+                    "error": "failure fixture" if status == "failed" else None}
+            row = {**step, "status": status, "task": task if status != "pending" else None,
+                   "native_request": receipt if status != "pending" else None,
+                   "route": route, "attempts": [{"id": task_id}] if status != "pending" else [],
+                   "requested_model": step["model"], "resolved_model": step["model"],
+                   "effort_observation": {"value": step["effort"] or None}}
+            if status != "pending":
+                receipts[step["id"]] = receipt
+                tasks.append(task)
+                (run / "workspace" / (step["id"] + "-handoff.md")).write_text("旧交接")
+            if status == "accepted":
+                accepted = {"task_id": task_id, "result": task["result"], "route": route,
+                            "requested_model": step["model"], "resolved_model": step["model"],
+                            "native_request": receipt, "effort_observation": row["effort_observation"]}
+                w.write_json(run / "accepted" / (step["id"] + ".json"), accepted)
+            rows.append(row)
+        snapshot = {"manifest": manifest, "connected": True, "at": time.time(),
+                    "status": "failed", "parent_running": False, "approvals": [], "steps": rows}
+        w.write_json(run / "workflow-live.json", snapshot)
+        return snapshot, receipts, tasks
+
+    def test_retry_invalidates_downstream_preserves_history_and_is_idempotent(self):
+        manifest, run = self.prepare()
+        snapshot, receipts, tasks = self.seed_retry(manifest, run, ("accepted",) * 4)
+        original_manifest = (run / "workflow-run.json").read_bytes()
+        with patch.object(w, "dispatch_receipts", return_value=receipts), \
+                patch.object(w, "route_for", return_value=None):
+            result = w.retry_stage(run, "code", "retry-history-1")
+            self.assertEqual(result["invalidated"], ["review", "deliver"])
+            self.assertTrue((run / "accepted/plan.json").is_file())
+            for sid in ("code", "review", "deliver"):
+                self.assertFalse((run / "accepted" / (sid + ".json")).exists())
+                self.assertTrue((run / "accepted/previous" / (sid + "-retry-history-1.json")).is_file())
+                self.assertEqual((run / "retry-history/retry-history-1" / sid /
+                                  (sid + "-handoff.md")).read_text(), "旧交接")
+                self.assertFalse((run / "workspace" / (sid + "-handoff.md")).exists())
+            self.assertEqual(w.retry_stage(run, "code", "retry-history-1"), result)
+            with self.assertRaisesRegex(ValueError, "请求 ID 冲突"):
+                w.retry_stage(run, "review", "retry-history-1")
+            with self.assertRaises(ValueError):
+                w.retry_stage(run, "code", "retry-history-2")
+            dispatch = w.next_step(run)
+            self.assertEqual(dispatch["step"], "code")
+            self.assertEqual(dispatch["tool"], "spawn_continue")
+            self.assertEqual(dispatch["continue"]["conversation"], "abc00001")
+            self.assertEqual(dispatch["spawn"]["agent"], "poc-claude")
+            projected = w.project(run, tasks, {"running": False}, [])
+            self.assertEqual([s["status"] for s in projected["steps"]],
+                             ["accepted", "pending", "pending", "pending"])
+            self.assertEqual(projected["status"], "ready")
+            # A stale observer publication cannot check the old task back in.
+            w.write_json(run / "workflow-live.json", snapshot)
+            with self.assertRaisesRegex(ValueError, "旧候选"):
+                w.accept(run, "abc00001")
+        self.assertEqual((run / "workflow-run.json").read_bytes(), original_manifest)
+
+    def test_retry_new_task_must_pass_existing_checkpoint_and_write_new_handoff(self):
+        manifest, run = self.prepare()
+        _, receipts, tasks = self.seed_retry(manifest, run, ("failed", "pending", "pending", "pending"))
+        with patch.object(w, "dispatch_receipts", return_value=receipts), \
+                patch.object(w, "route_for", return_value={"actual_backend": "kiro",
+                                                         "crew_session_key": "subagent:abc00000"}), \
+                patch.object(Path, "home", return_value=self.root):
+            w.retry_stage(run, "plan", "retry-new-task")
+            receipts["plan"] = {**receipts["plan"], "task_id": "def00000", "conversation": "abc00000"}
+            task = {**tasks[0], "id": "def00000", "error": None, "started": time.time(), "result": "本轮完成"}
+            projected = w.project(run, [*tasks, task], {"running": False}, [])
+            projected["steps"][0]["requested_model"] = "auto"
+            w.write_json(run / "workflow-live.json", projected)
+            dispatch = w.next_step(run)
+            self.assertTrue(dispatch["wait"])
+            self.assertEqual(dispatch["task_id"], "def00000")
+            self.assertEqual(projected["steps"][0]["status"], "awaiting_check")
+            receipts["plan"] = {**receipts["plan"], "task_id": "def00001"}
+            with self.assertRaisesRegex(ValueError, "旧候选"):
+                w.accept(run, "def00000")
+            receipts["plan"]["task_id"] = "def00000"
+            with self.assertRaisesRegex(ValueError, "交接文件"):
+                w.accept(run, "def00000")
+            (run / "workspace/plan-handoff.md").write_text("本次交接")
+            self.assertTrue(w.accept(run, "def00000")["ok"])
+            self.assertTrue(w.read_json(run / "checks/def00000.json")["passed"])
+            self.assertEqual(w.next_step(run)["step"], "code")
+
+    def test_retry_fallback_and_rejected_states_do_not_mutate_evidence(self):
+        for status in ("running", "submitted", "awaiting_check", "pending"):
+            manifest, run = self.prepare()
+            self.seed_retry(manifest, run, ("accepted", status, "pending", "pending"))
+            before = (run / "accepted/plan.json").read_bytes()
+            with self.subTest(status=status), self.assertRaises(ValueError):
+                w.retry_stage(run, "code", "retry-invalid-state")
+            self.assertFalse((run / "retry-state.json").exists())
+            self.assertEqual((run / "accepted/plan.json").read_bytes(), before)
+        manifest, run = self.prepare()
+        snapshot, _, _ = self.seed_retry(manifest, run, ("check_failed", "pending", "pending", "pending"))
+        snapshot["steps"][0]["native_request"] = None
+        with patch.object(w, "dispatch_receipts", return_value={}):
+            for fields in ({"parent_running": True}, {"approvals": [{"id": "approval"}]},
+                           {"at": time.time() - 60}, {"connected": False}):
+                w.write_json(run / "workflow-live.json", {**snapshot, **fields})
+                with self.subTest(fields=fields), self.assertRaises(ValueError):
+                    w.retry_stage(run, "plan", "retry-fallback-1")
+                self.assertFalse((run / "retry-state.json").exists())
+            w.write_json(run / "workflow-live.json", snapshot)
+            w.retry_stage(run, "plan", "retry-fallback-1")
+            self.assertEqual(w.next_step(run)["tool"], "spawn_run")
+            self.assertEqual(w.next_step(run)["spawn"]["agent"], "poc-kiro")
+
+    def test_retry_refuses_a_new_dispatch_not_yet_in_the_observer(self):
+        manifest, run = self.prepare()
+        _, receipts, _ = self.seed_retry(manifest, run)
+        receipts["code"]["task_id"] = "def00001"
+        with patch.object(w, "dispatch_receipts", return_value=receipts):
+            with self.assertRaisesRegex(ValueError, "派发已更新"):
+                w.retry_stage(run, "code", "retry-stale-dispatch")
+        self.assertFalse((run / "retry-state.json").exists())
+
+    def test_concurrent_retry_requests_share_one_invalidation(self):
+        manifest, run = self.prepare()
+        _, receipts, _ = self.seed_retry(manifest, run, ("accepted",) * 4)
+        with patch.object(w, "dispatch_receipts", return_value=receipts), ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(w.retry_stage, run, "code", "retry-concurrent") for _ in range(2)]
+            results = [future.result(timeout=5) for future in futures]
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(len(w.retry_state(run)["requests"]), 1)
+        self.assertEqual(len(list((run / "accepted/previous").glob("*.json"))), 3)
+
+    def test_three_stage_auto_definition_can_prepare_and_dispatch_in_order(self):
+        value = json.loads((Path(__file__).parent / "workflows/ui-optimize-three-stage.json").read_text())
+        definition = w.save(value, 0)
+        self.assertEqual([s["tool"] for s in definition["steps"]], ["kiro", "codex", "claude"])
+        self.assertIn("Fabel 5.1", definition["steps"][2]["prompt"])
+        w.write_json(w.MODEL_CACHE, {})
+        with patch.object(w.api, "request", side_effect=lambda path, body:
+                          {"key": body["name"]} if path == "/api/chat/slots" else {"ok": True}):
+            manifest = w.prepare(value["id"], 1)
+        run = Path(manifest["run"])
+        w.capture(run, "验证三阶段可移植配置")
+        for step in definition["steps"]:
+            dispatch = w.next_step(run)
+            self.assertEqual(dispatch["step"], step["id"])
+            self.assertEqual(dispatch["spawn"]["agent"], w.TOOLS[step["tool"]]["agent"])
+            self.assertEqual(dispatch["spawn"]["model"], "auto")
+            self.assertEqual(dispatch["spawn"]["reasoning_effort"], "")
+            w.write_json(run / "accepted" / (step["id"] + ".json"), {"task_id": step["id"], "result": "夹具"})
+        self.assertTrue(w.next_step(run)["done"])
+        value["steps"][2]["model"] = "Fabel 5.1"
+        with self.assertRaises(ValueError):
+            w.validate(value)
+
+    def test_session_progress_uses_the_shared_javascript_calculation(self):
+        script = """
+const assert = require("node:assert/strict");
+const {calculate} = require(process.argv[1]);
+assert.deepEqual(calculate(null), {done:0,total:0,percent:0});
+for (const [statuses, expected] of [
+  [["accepted","running"],50], [["accepted","failed"],50],
+  [["accepted","accepted","pending"],67], [["accepted","accepted"],100],
+  [["running","check_failed"],0], [["pending"],0]]) {
+  const data = {manifest:{workflow:{steps:statuses.map((_,i)=>({id:String(i)}))}},
+    steps:statuses.map(status=>({status}))};
+  assert.equal(calculate(data).percent, expected);
+}
+console.log("progress: 7 cases passed");
+"""
+        result = subprocess.run(["node", "-e", script, str(Path(__file__).parent / "ui/workflow-progress.js")],
+                                text=True, capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_long_input_and_history_use_files_within_native_task_limit(self):
         _, run = self.prepare()

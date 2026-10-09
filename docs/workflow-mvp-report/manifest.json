@@ -1,0 +1,76 @@
+{
+  "report": "Workflow MVP interactive explainer",
+  "source_commit": "a3c0040",
+  "built_at": "2026-10-08T23:37:29+08:00",
+  "chapters": 17,
+  "standalone_diagrams": 13,
+  "embedded_source_snippets": 20,
+  "inputs": [
+    {
+      "path": "WORKFLOW-MVP.md",
+      "sha256": "529e1b8de9144f21719d61b409550d98773705295c16460841c57ff3d24683d2"
+    },
+    {
+      "path": "docs/DEVELOPMENT-HANDBOOK.md",
+      "sha256": "1e0eb24973bc59ab794407e42e339b877199d6cd5e205391206300ead5b6e4ac"
+    },
+    {
+      "path": "docs/OPERATIONS.md",
+      "sha256": "b6d6d34ec74179ced8cbb8a363a39866c2c5504960cf88392fda955245f57bcb"
+    },
+    {
+      "path": "docs/BASELINE.md",
+      "sha256": "7b0159b9020c0687ec7d6dd33b139dd7ed43405dda5480be000761acd72018c6"
+    },
+    {
+      "path": "docs/FEATURES-AND-DECISIONS.md",
+      "sha256": "7fba902006920825b6a5cc4b6f042dd5d18683cd889b869a5d3d4ac00ba91181"
+    },
+    {
+      "path": "docs/RELEASE-NOTES.md",
+      "sha256": "8c990327fbe315c335455f129b6b0153ba67fe3979b8aad193d26ba8191b977c"
+    },
+    {
+      "path": "docs/PUBLICATION-VERIFICATION.md",
+      "sha256": "28a0e7546bd5f856b3637f7388e32e045e4482b3cdbfc39e55b6e33db40f5c3b"
+    },
+    {
+      "path": "PLAN.md",
+      "sha256": "767106a6e1d2ff10162bfc1199f17faf8c807bcd3c77e957bc00b3d0e84690d7"
+    },
+    {
+      "path": "PIPELINE.md",
+      "sha256": "f6fa2b1f7960c3a114804f29af4d5d2310ac4a9d3fd427cd589bbbc42ec9ac80"
+    },
+    {
+      "path": "README.md",
+      "sha256": "e527ef5870c234d805d8c3f0efe14d5a8addf95876bc948ffc64fab02f63d0e2"
+    },
+    {
+      "path": "workflow.py",
+      "sha256": "0bbf8749051eb497e384b3df7f7bd72821b72d54c3c30f82ead1c85ec7f0b761"
+    },
+    {
+      "path": "poc.py",
+      "sha256": "4b91c6a78502386b42f31530cbb10cfb943bc1f07d0c8bbed988a6e7bc4f89ad"
+    },
+    {
+      "path": "api.py",
+      "sha256": "e3b72e8ada67a70f1a6c59e3b76647d2d79c223b240b5368bc0fdf1f797b2045"
+    },
+    {
+      "path": "workflow_files.py",
+      "sha256": "10f995cfc697c05eab15a1bf72fea1c666f3c0efcf6b5e3c3e722ab741a9dd0c"
+    },
+    {
+      "path": "workflow_library.py",
+      "sha256": "0c1bc7ffb5b52f84d71ab5c3a80f19b7930b3dfb5fb690929908b094efb13d62"
+    },
+    {
+      "path": "reload_gateway.py",
+      "sha256": "5363081cc14d3a6c7746738b16d198345536a0ae8d7367e729becd6dfea6d0bd"
+    }
+  ],
+  "html_sha256": "30fd41951540493786996dc4780de76d1b96c9950ae60fbebf52a445417a3dd0",
+  "mode": "offline explanatory simulation; no native tasks or sessions"
+}

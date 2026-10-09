@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>KiroCrew Octopus · Workflow MVP 交互详解</title>
+  <meta name="description" content="从架构、ACP 调用链、Session Context、Model Effort 到工作流版本与交接核对的离线交互报告。">
+  <style>{{css}}</style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">{{icons}}</svg>
+  <header class="topbar">
+    <button class="icon-button" id="nav-toggle" aria-label="展开或收起章节导航" aria-expanded="true"><svg class="icon"><use href="#i-menu"/></svg></button>
+    <a class="brand" href="#overview"><svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.3"><path d="M20 20V5M20 20L5 12M20 20L5 29M20 20L20 35M20 20L35 29M20 20L35 12"/><circle cx="20" cy="20" r="7" fill="white"/><circle cx="20" cy="5" r="3" fill="currentColor"/><circle cx="5" cy="12" r="3" fill="currentColor"/><circle cx="5" cy="29" r="3" fill="currentColor"/><circle cx="20" cy="35" r="3" fill="currentColor"/><circle cx="35" cy="29" r="3" fill="currentColor"/><circle cx="35" cy="12" r="3" fill="currentColor"/></g></svg><span><b>KiroCrew Octopus</b><small>Workflow MVP · 原理与过程</small></span></a>
+    <span class="header-meta">本地基线 0.7.2 <span>2026-10-08</span></span>
+    <div class="top-actions"><button id="present-toggle" aria-pressed="false"><svg class="icon"><use href="#i-present"/></svg><span>投屏模式</span></button><button id="print-report"><svg class="icon"><use href="#i-print"/></svg><span>打印 / PDF</span></button></div>
+  </header>
+  <div id="nav-scrim" hidden></div>
+  <aside class="sidebar" id="sidebar" aria-label="报告章节">
+    <label class="search-label"><svg class="icon"><use href="#i-search"/></svg><input type="search" id="chapter-search" placeholder="搜索章节或机制" aria-label="搜索章节或机制"></label>
+    <p id="search-count" class="search-count" aria-live="polite">17 个章节 · 可连续阅读</p>
+    <nav id="chapter-nav">{{nav}}</nav>
+    <div class="sidebar-footer"><span class="tag gray">离线交互报告</span><p>动画为机制示意<br>不连接实际 Coding 工具</p><a href="#sources">原文与源码快照</a></div>
+  </aside>
+  <main id="main">{{chapters}}</main>
+  <footer class="reader-bar"><span id="reader-label">01 / 17 · 从需求到四工具交付</span><div class="reading-progress" aria-hidden="true"><i id="reading-progress"></i></div><div><button id="chapter-prev" aria-label="上一章"><svg class="icon"><use href="#i-left"/></svg></button><button id="chapter-next" aria-label="下一章"><svg class="icon"><use href="#i-right"/></svg></button></div></footer>
+  <dialog id="diagram-dialog" aria-labelledby="diagram-title"><div class="dialog-toolbar"><h3 id="diagram-title">架构图</h3><label>缩放 <input type="range" id="diagram-zoom" min="50" max="200" step="10" value="100"><span id="zoom-label">100%</span></label><button id="diagram-download"><svg class="icon"><use href="#i-download"/></svg>SVG</button><button data-close-dialog aria-label="关闭图表"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="diagram-viewport"></div></dialog>
+  <dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-toolbar"><h3 id="source-title">源码</h3><button id="source-copy">复制内容</button><button data-close-dialog aria-label="关闭源码"><svg class="icon"><use href="#i-close"/></svg></button></div><p id="source-provenance"></p><pre id="source-content"></pre></dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <noscript><p class="noscript">脚本已关闭：正文和图表仍可阅读，动画、搜索和源码弹窗需要启用 JavaScript。</p></noscript>
+  <script type="application/json" id="report-data">{{data}}</script>
+  <script>{{js}}</script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<section class="chapter" id="overview" data-title="从需求到四工具交付" data-group="建立整体认识">
+  <div class="hero">
+    <p class="edition">KiroCrew Octopus · Workflow MVP 实现详解</p>
+    <h1>一条需求，<br>四种 Coding Agent。</h1>
+    <p class="hero-intro">用户决定任务与工具，KiroCrew 管理原生会话。工作流把需求、执行参数和交接证据串起来，让一次开发过程能够被配置、被观察、被解释。</p>
+    <div class="hero-actions"><a class="button primary" href="#dispatch">播放一次完整调用</a><a class="button" href="#architecture">先看架构</a></div>
+    <div class="crew-strip" aria-label="默认四阶段模板">
+      <div class="crew-role kiro"><svg class="icon"><use href="#i-compass"/></svg><strong>Kiro CLI</strong><span>分析与规划</span></div><span class="role-arrow">→</span>
+      <div class="crew-role claude"><svg class="icon"><use href="#i-code"/></svg><strong>Claude Code</strong><span>编码与自测</span></div><span class="role-arrow">→</span>
+      <div class="crew-role codex"><svg class="icon"><use href="#i-shield"/></svg><strong>Codex</strong><span>安全与测试审查</span></div><span class="role-arrow">→</span>
+      <div class="crew-role opencode"><svg class="icon"><use href="#i-window"/></svg><strong>OpenCode</strong><span>前端与交付整理</span></div>
+    </div>
+    <p class="caption">顺序来自默认模板，可由用户修改。全篇动画使用合成示例，不连接 Gateway、不消耗模型 Token，也不代表正在运行的真实任务。</p>
+  </div>
+  <div class="chapter-heading"><span class="chapter-no">01</span><h2>先看清这个 MVP 做了什么</h2></div>
+  <p class="lead">把它理解成一份可执行的“开发任务书”：每一项工作指定谁来做、用什么模型、交接什么结果；KiroCrew 负责把任务送到实际 Coding Agent，工作台把证据收回来。</p>
+  <div class="fact-row"><div><b>3</b><span>配置入口：文件 / Chat / Web</span></div><div><b>1–8</b><span>顺序任务；不是任意 DAG</span></div><div><b>1</b><span>每个 Run 对应一个 App 父对话</span></div><div><b>4</b><span>候选工具；不含 Gemini</span></div></div>
+  <h3>用户使用它时，真正掌握的四个选择</h3>
+  <div class="table-wrap"><table><thead><tr><th>选择</th><th>用户要表达什么</th><th>系统如何处理</th></tr></thead><tbody>
+    <tr><td>Task</td><td>要完成什么、交付什么、怎么验证</td><td>保存到步骤 prompt，运行时生成完整指令文件</td></tr>
+    <tr><td>Coding Tool</td><td>Kiro、Claude、Codex 或 OpenCode</td><td>映射 Agent 模板，在 Provider factory 选择 ACP 后端</td></tr>
+    <tr><td>Model</td><td>明确模型 ID，或允许后端自动选择</td><td>传入原生请求，并区分请求与实际返回</td></tr>
+    <tr><td>Effort</td><td>本次推理投入覆盖，或继承默认</td><td>按当前工具能力校验；不保证所有模型都支持同一档位</td></tr>
+  </tbody></table></div>
+  <div class="callout blue"><svg class="icon"><use href="#i-bulb"/></svg><div><strong>不需要用户手写 Plan.md 和 Tasks</strong><p>需求由用户输入，计划、测试和任务产物由工作者按步骤生成。工作流配置负责角色与约定，实际工程内容在运行目录中产生。</p></div></div>
+  <h3>三类能力要分开介绍</h3>
+  <div class="comparison">
+    <article><span class="tag green">KiroCrew 原生</span><h4>会话与执行底座</h4><p>App Chat、托管 MCP、spawn_run、Gateway、SubagentManager、SessionManager、ACP 会话、权限与完成事件。</p></article>
+    <article><span class="tag blue">Octopus 扩展</span><h4>配置与交接工作台</h4><p>版本、Run 快照、多后端 Registry 组合、参数核对、可视化、导入导出、归档和意图生成。</p></article>
+    <article><span class="tag amber">后续规划</span><h4>规模化与团队能力</h4><p>可靠无人值守调度、团队权限、隔离 Worker、仓库 Connector。EC2 目前只保留设计，先完成本地基础测试。</p></article>
+  </div>
+  <p>客户获得的是基于已有 KiroCrew 扩展接口交付的框架。它既不要求客户重新编写 ACP Adapter，也不能描述为“只安装未经扩展的原版 App，写一个 JSON 就自动出现这些界面”。</p>
+  {{source:control_prompt|查看父 Agent 的协调约定}}
+</section>
+
+<section class="chapter" id="architecture" data-title="架构分层与责任边界" data-group="建立整体认识">
+  <div class="chapter-heading"><span class="chapter-no">02</span><h2>配置层决定约定，原生层负责执行</h2></div>
+  <p class="lead">系统中有两条同时存在的路径：向下是“准备需求 → 原生分派 → 工具执行”；向上是“真实事件 → 观察与核对 → 页面显示”。进度页面的刷新不负责推进 Agent。</p>
+  {{diagram:architecture}}
+  <h3>四个关键边界</h3>
+  <ol class="explainer-list">
+    <li><strong>输入边界。</strong>Web、配置文件和 Chat 最终都通过同一套结构校验、保存和版本规则。后台轮询不会替用户保存草稿。</li>
+    <li><strong>调度边界。</strong><code>workflow.py next</code> 输出精确参数。父 Agent 经原生 MCP 调用 <code>spawn_run</code>，而不是网页自己调用 Coding CLI。</li>
+    <li><strong>路由边界。</strong><code>PocProviderRegistry.create_factory</code> 将专用 Agent 模板映射到原生 ACP factory，保留 KiroCrew 的会话与权限流程。</li>
+    <li><strong>证据边界。</strong>发送配置、拿到 Task ID、工具返回结果、接受交接，是不同阶段。看板必须说明每个判断来自什么证据。</li>
+  </ol>
+  <div class="callout green"><svg class="icon"><use href="#i-layers"/></svg><div><strong>ACP 和 MCP 在这里各做一件事</strong><p>MCP 是父 Agent 使用 <code>spawn_run</code> 等工具的通道。ACP 是 KiroCrew 驱动目标 Coding Agent 会话的协议。外部 MCP Server 还可以成为目标工具可用的能力，但它不是 ACP 后端本身。</p></div></div>
+  <h3>为什么不直接使用上游 Workflow DSL？</h3>
+  <p>基线文档记录的本机版本中，原生 Workflow DSL 的 <code>ctx.agent(effort=...)</code> 没有在对应执行路径完整下传到 SessionManager。MVP 因而沿用已验证的 App → SubagentManager → <code>spawn_run</code> 参数链。这个选择针对当时版本，不能推导为上游永远不支持。</p>
+  <p>Octopus 的 JSON 定义、保存目录与上游原生 <code>/workflow</code> 库也不是同一个存储。报告会使用“Octopus Workflow”描述这里的定义，避免把两套产品能力混在一起。</p>
+  {{source:registry|查看已有接口上的 Registry 组合}}
+</section>
+
+<section class="chapter" id="workflow" data-title="向导、三种入口与工作台" data-group="建立整体认识">
+  <div class="chapter-heading"><span class="chapter-no">03</span><h2>先构建工作流，再把视线交给开发状态</h2></div>
+  <p class="lead">工作台的组织关系是 Workflow → Sessions → Tasks。配置时展开向导；开始开发后收起向导，把中央区域留给任务状态、真实调用信息和交付物。</p>
+  {{diagram:journey}}
+  <div class="anatomy" aria-label="工作台布局说明，示意界面">
+    <div class="anatomy-top"><svg class="icon"><use href="#i-activity"/></svg><b>Session 整体进度</b><span>已接受交接 2 / 4 · 示意</span><div class="anatomy-progress"><i></i><i></i><i class="pending"></i><i class="pending"></i></div></div>
+    <div class="anatomy-left"><b>Workflow → Sessions</b><p>从需求到 Web 交付</p><span class="selected">本次发布说明工作台</span><span>上一次 Bug 修复</span><hr><button data-anatomy="wizard">编辑工作流</button><button data-anatomy="session">Session 操作</button></div>
+    <div class="anatomy-center"><span class="tag blue">中央区域</span><h4>任务进度与执行证据</h4><p>配置已发送不等于实际生效。点击任务，查看 backend、Model、Effort、Task ID 和工具 Session。</p><div class="mini-events"><span>✓ 规划：已交接</span><span>✓ 编码：已交接</span><span>● 审查：待授权</span></div><button data-anatomy="status">解释状态报告</button></div>
+    <div class="anatomy-right"><b>本次 Tasks</b><span>01　Kiro 规划</span><span>02　Claude 编码</span><span class="selected">03　Codex 审查</span><span>04　OpenCode 交付</span><button data-anatomy="task">查看 Task 身份</button></div>
+    <p class="anatomy-caption" id="anatomy-note" aria-live="polite">布局示意：点击不同区域的按钮查看解释。此处不连接实际工作台。</p>
+  </div>
+  <h3>三步向导怎样减少操作负担</h3>
+  <div class="table-wrap"><table><thead><tr><th>阶段</th><th>输入 / 操作</th><th>保留规则</th></tr></thead><tbody>
+    <tr><td>目标</td><td>输入开发需求、选模板，或根据意图生成工作流草稿</td><td>模板复制成新草稿；已有用户需求不会被示例覆盖</td></tr>
+    <tr><td>任务与 Agent</td><td>先定义 Task ID、名称、任务与产物，再选择工具 / Model / Effort；可排序、增删</td><td>支持 1–8 个顺序步骤；同一工作流的步骤 ID 不重复</td></tr>
+    <tr><td>确认</td><td>核对版本和任务顺序；仅保存，或保存并开始</td><td>开始会建立独立 Run；修改只影响下一次运行</td></tr>
+  </tbody></table></div>
+  <p>向导最大展开宽度为 940px，并适配窄屏。收起、刷新、切换历史 Session 时，浏览器保存草稿、步骤和布局状态。不同工作流各保留配置草稿，本次需求是向导共用的输入；只有显式保存才写入服务端版本。</p>
+  <h3>文件、Chat 与 Web 如何汇合</h3>
+  <ul class="plain-list">
+    <li><strong>文件：</strong>JSON / YAML / Markdown 导入后先形成独立草稿；修改文件后必须执行 <code>save</code> 或从 Web 导入保存，没有后台文件自动监听。</li>
+    <li><strong>Chat：</strong>父对话知道配置位置和版本命令，可按自然语言执行修改。网页通过“重新加载已保存配置”同步；有本地改动时明确提示将放弃当前草稿。</li>
+    <li><strong>Web：</strong>向导把配置送入同一保存逻辑，不单独维护一套可绕过版本检查的定义。</li>
+  </ul>
+  <div class="callout amber"><svg class="icon"><use href="#i-clock"/></svg><div><strong>冻结时刻是“准备 Run”，不一定是发送需求之后</strong><p>若先创建 App 对话，再在 Chat 中修改工作流，旧对话仍属于准备时的快照。要使用新版本，需要从工作台建立一次新运行。</p></div></div>
+  <h3>四种实例模板</h3>
+  <div class="template-line"><span>Web 应用四工具交付</span><span>Bug 修复与回归</span><span>双工具代码审查</span><span>Go API 与 Web 工作台</span></div>
+  <p>模板使用 <code>model=auto</code>、空 Effort 作为可移植起点。实际模型仍由目标工具和账号决定，模板本身不保证目标环境已安装语言运行时或依赖。</p>
+  {{source:validate|查看工作流 Schema 与步骤约束}}
+</section>
+
+<section class="chapter" id="versions" data-title="版本、Session 与任务身份" data-group="建立整体认识">
+  <div class="chapter-heading"><span class="chapter-no">04</span><h2>定义可以变化，本次运行的约定不能偷偷变化</h2></div>
+  <p class="lead">Workflow 是可复用定义；revision 是一次有效保存；Run 是带有固定版本和原始需求的一次开发；每个步骤又关联一次或多次原生执行尝试。</p>
+  {{diagram:identity}}
+  <h3>用一个小实验看清“下次运行生效”</h3>
+  <div class="lab version-lab">
+    <div class="lab-header"><svg class="icon"><use href="#i-branch"/></svg><div><b>版本演示</b><span>纯浏览器示意，不修改任何真实 Workflow</span></div><button id="version-reset">重置</button></div>
+    <div class="version-columns">
+      <div><h4>可编辑定义</h4><label for="version-effort">下一版 Review Effort</label><select id="version-effort"><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select><p id="version-definition">当前已保存 r1 · high</p><button class="primary" id="version-save">保存新版本</button></div>
+      <div class="snapshot"><svg class="icon"><use href="#i-lock"/></svg><h4>已经开始的 Session A</h4><strong>r1 · high</strong><p>固定快照，不随左侧编辑变化。</p></div>
+      <div><h4>下一次 Session B</h4><p id="version-next">尚未创建；将使用已保存版本。</p><button id="version-create">新建示意 Session</button></div>
+    </div>
+    <p id="version-message" class="lab-result" aria-live="polite">把 Effort 改成 low 并保存，可以观察两个 Session 使用不同版本。</p>
+  </div>
+  <h3>保存时，有三道明确约束</h3>
+  <ol class="explainer-list">
+    <li><strong>结构校验：</strong>只接受约定字段；步骤 ID、工具、模型和 Effort 必须满足约束。</li>
+    <li><strong>同一写入锁：</strong>文件、Web、Chat 的保存进入相同文件锁。名称经过 NFKC、空白归一和 casefold 比较，不允许不可见控制字符。</li>
+    <li><strong>乐观版本检查：</strong><code>expected_revision</code> 必须等于当前版本。冲突时要求重新加载、合并，不静默覆盖。内容没有变化时返回已有版本，不无意义递增。</li>
+  </ol>
+  <p>版本实际文件名是零填充序号，例如 <code>state/workflow-versions/&lt;id&gt;/000001.json</code>；文档中 r1、r2 是便于阅读的简称。新 Run 保存完整定义与 SHA-256，之后通过快照核对读取。</p>
+  <h3>不要把这六种 ID 混为一个 Session</h3>
+  <div class="table-wrap"><table><thead><tr><th>身份</th><th>作用</th><th>是否随重试 / 新运行变化</th></tr></thead><tbody>
+    <tr><td>Workflow ID</td><td>一份可复用定义</td><td>普通编辑不变；复制 / 导入会新建</td></tr>
+    <tr><td>revision</td><td>定义的有效版本</td><td>保存变更后增加</td></tr>
+    <tr><td>Run / App Session ID</td><td>一次开发与父对话</td><td>新运行生成时间戳 + UUID</td></tr>
+    <tr><td>逻辑 Task ID</td><td>Run / 步骤 ID 的组合</td><td>区分不同运行中的同名步骤</td></tr>
+    <tr><td>原生执行 Task ID</td><td>spawn_run / spawn_continue 的一次执行</td><td>续作产生新的执行 ID</td></tr>
+    <tr><td>工具 Session ID</td><td>目标 Coding 工具内部会话</td><td>同工具续作可能复用；跨工具不共用</td></tr>
+  </tbody></table></div>
+  <p>名称唯一性作用于不同 Workflow ID 的当前名称，删除标记中的工作流也保留名称，避免恢复冲突。不同工作流可以都包含 <code>code</code> 步骤；完整身份由上层 Run / Workflow 限定。</p>
+  {{source:save|查看文件锁、版本检查与保存}}
+</section>
+
+<section class="chapter" id="dispatch" data-title="一次运行的完整调用链" data-group="跟踪一次执行">
+  <div class="chapter-heading"><span class="chapter-no">05</span><h2>从“发送需求”走到“接受交接”</h2></div>
+  <p class="lead">核心循环只有三件事：<code>next</code> 决定下一步参数，原生 <code>spawn_run</code> 执行，<code>accept</code> 核对真实结果。循环的协调者是父 Agent。</p>
+  <div class="lab execution-lab">
+    <div class="lab-header"><svg class="icon"><use href="#i-play"/></svg><div><b>逐步运行机制演示</b><span>合成事件；演示百分比只按交接完成数计算</span></div></div>
+    <div class="sim-controls"><label>场景<select id="sim-scenario"><option value="happy">正常四工具交付</option><option value="mismatch">编码结束，实际模型不匹配</option><option value="permission">审查时等待原生授权</option><option value="offline">观察器断连</option></select></label><button class="primary" id="sim-play">播放</button><button id="sim-next">下一步</button><button id="sim-reset">重置</button><button id="sim-resolve" hidden>模拟恢复</button></div>
+    <div class="sim-call-path" aria-label="当前调用位置示意"><span data-call-phase="0">用户 / 定义</span><i>→</i><span data-call-phase="1">父 Session</span><i>→</i><span data-call-phase="2">next 参数</span><i>→</i><span data-call-phase="3">原生分派</span><i>→</i><span data-call-phase="4">ACP 工具</span><i>→</i><span data-call-phase="5">事件 / accept</span></div>
+    <div class="sim-pipeline" id="sim-pipeline">
+      <div data-tool="kiro"><svg class="icon"><use href="#i-compass"/></svg><b>Kiro</b><span>待执行</span></div>
+      <div data-tool="claude"><svg class="icon"><use href="#i-code"/></svg><b>Claude</b><span>待执行</span></div>
+      <div data-tool="codex"><svg class="icon"><use href="#i-shield"/></svg><b>Codex</b><span>待执行</span></div>
+      <div data-tool="opencode"><svg class="icon"><use href="#i-window"/></svg><b>OpenCode</b><span>待执行</span></div>
+    </div>
+    <div class="sim-progress"><span id="sim-meter-label">已交接 0 / 4 · 0%</span><div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="sim-meter"><i></i></div><span id="sim-observer">观察器：示意连接</span></div>
+    <div class="sim-narration"><span id="sim-stage" class="tag blue">准备</span><h4 id="sim-title">用户输入需求</h4><p id="sim-description">点击播放或下一步，查看一条需求怎样经过原生父会话与四个后端。</p><code id="sim-command">示意：用户 → Workflow Studio</code></div>
+    <label class="scrubber">执行位置<input id="sim-range" type="range" min="0" max="14" value="0"><span id="sim-position">1 / 15</span></label>
+    <details><summary>查看示意事件记录</summary><ol id="sim-log" class="event-log"></ol></details>
+    <p class="caption">“模拟恢复 / 允许”只改变此报告中的演示状态，不处理真实权限。真实授权必须回到 KiroCrew。</p>
+  </div>
+  <h3>完整交互时序，保留每一次责任交接</h3>
+  {{diagram:dispatch}}
+  <h3>三个需要特别区分的时间点</h3>
+  <div class="comparison"><article><span class="tag blue">收到 Task ID</span><h4>原生系统接收了请求</h4><p>任务可能排队，尚未进入活动任务列表。此时只能显示“已接收，等待执行”。</p></article><article><span class="tag teal">原生完成事件</span><h4>工具本轮执行结束</h4><p>可能存在空结果、参数不匹配或交接文件缺失，不能直接增加“已交接”数。</p></article><article><span class="tag green">accept 通过</span><h4>交接条件已核对</h4><p>保存收据，再进入下一步。它仍不是自动安全认证或发布批准。</p></article></div>
+  <p>父 Agent 每次分派后结束当前 turn，等待原生完成事件再继续。它不需要循环轮询子任务。宿主观察器定期读取状态，是为了让用户看到过程；即使页面关闭，页面本身也不是执行引擎。</p>
+  <p>当前控制依赖父 Agent 遵守协调协议，尚不是强制 DAG 状态机。核对失败可以阻止错误交接标为成功，但不能保证一个不遵循指令的 Agent 永远不会提前调用工具。可靠排队、恢复和重试属于后续本地增强。</p>
+  {{source:next_step|查看 next 如何输出原生 spawn 参数}}
+  {{source:prepare|查看 Run 与父会话怎样创建}}
+</section>

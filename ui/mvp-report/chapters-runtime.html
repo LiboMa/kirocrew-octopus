@@ -1,0 +1,147 @@
+<section class="chapter" id="harness" data-title="ACP Harness 与路由封装" data-group="跟踪一次执行">
+  <div class="chapter-heading"><span class="chapter-no">06</span><h2>换 Coding Agent，改变的是整条执行接入路径</h2></div>
+  <p class="lead">工具、模型和 Agent 模板是不同维度。只在模板里看到 <code>model: auto</code>，不能据此判断实际调用了 Claude 还是 Codex；后端选择发生在 Provider factory 的组合边界。</p>
+  <div class="lab route-lab">
+    <div class="lab-header"><svg class="icon"><use href="#i-route"/></svg><div><b>路由拆解器</b><span>选择工具，观察同一套接口怎样接到不同 Harness</span></div></div>
+    <div class="route-tabs" role="group" aria-label="选择路由演示工具"><button class="active" data-route="kiro" aria-pressed="true">Kiro CLI</button><button data-route="claude" aria-pressed="false">Claude Code</button><button data-route="codex" aria-pressed="false">Codex</button><button data-route="opencode" aria-pressed="false">OpenCode</button></div>
+    <div class="route-chain"><div><small>Workflow</small><code id="route-tool">tool: kiro</code></div><span>→</span><div><small>原生 spawn_run</small><code id="route-agent">agent: poc-kiro</code></div><span>→</span><div><small>ProviderRegistry</small><code id="route-backend">backend: kiro</code></div></div>
+    <div class="route-detail"><h4 id="route-command">Kiro 原生 ACP 路径</h4><p id="route-note"></p><div class="route-observation"><span>证明选路</span><code>provider.client.backend → actual_backend</code></div></div>
+  </div>
+  <h3>Registry 的封装顺序</h3>
+  <ol class="explainer-list">
+    <li><strong>准备多个配置副本。</strong>每个后端获得独立的配置副本，把 <code>acp_backend</code> 和 member backend 设到目标路径，再调用已有 <code>create_provider_factory()</code>。</li>
+    <li><strong>保留普通 Agent 行为。</strong>不属于专用 <code>poc-*</code> 模板的请求交给原 Registry；未知的 <code>poc-*</code> 名称会明确报错。</li>
+    <li><strong>按模板选择 factory。</strong><code>poc-claude</code> 进入 Claude factory，<code>poc-codex</code> 进入 Codex factory。Agent 模板的工具策略与后端选路分别承担职责。</li>
+    <li><strong>检查实际 Provider。</strong>创建后读取 <code>provider.client.backend</code>，与期望后端比较，再记录路由证据。Agent 自称“我是 Codex”不构成身份核验。</li>
+  </ol>
+  <div class="table-wrap"><table><thead><tr><th>目标工具</th><th>当前接入</th><th>认证与工具状态</th></tr></thead><tbody>
+    <tr><td>Kiro CLI</td><td>原生 Kiro ACP / Runtime 路径</td><td>Kiro 自身的认证、配置与 Agent 范围</td></tr>
+    <tr><td>Claude Code</td><td>claude-agent-acp，经 Agent SDK 使用 Claude Code</td><td>Claude 自身的登录、settings 与原生发现能力</td></tr>
+    <tr><td>Codex</td><td>codex-acp 驱动 Codex App Server</td><td>Codex 自身配置、会话与凭据</td></tr>
+    <tr><td>OpenCode</td><td>OpenCode 原生 ACP 接入</td><td>OpenCode 所配置的 Provider 与权限</td></tr>
+  </tbody></table></div>
+  {{diagram:acp}}
+  <p>ACP 提供共同的会话协议，但不抹平每个工具的差异。会话恢复、模型配置、工具权限、文件操作和用量返回都要按后端实际能力处理。最细的路由粒度是<strong>一次子任务 / 子 Session</strong>，并不是每次 read、write 或 shell 调用都更换 Coding Agent。</p>
+  <div class="callout amber"><svg class="icon"><use href="#i-unlink"/></svg><div><strong>为什么关闭 session sharing 与 warm pool？</strong><p>当前 Registry 要求 <code>session_sharing=false</code>、<code>pool_size=0</code>，避免跨后端误复用已有工具会话。复用的是 Provider 接口与管理机制，不是把四个工具强行塞进同一个活跃 ACP 连接。</p></div></div>
+  <h3>第三方 Provider 与 MCP 应放在哪里</h3>
+  <p>模型服务由选中的 Coding Tool 自己访问。能否使用第三方平台，要看该工具和适配器对 endpoint、认证和模型的实际支持；本 MVP 没有统一转发所有模型请求的服务。外部 MCP 也按工具配置、Crew 投射和权限进入，不会因为电脑上装过某个 MCP 就对全部后端自动可用。</p>
+  {{source:registry|查看 factory 路由和实际 backend 检查}}
+</section>
+
+<section class="chapter" id="parameters" data-title="模型、Effort 与真实证据" data-group="跟踪一次执行">
+  <div class="chapter-heading"><span class="chapter-no">07</span><h2>配置请求、原生请求、实际生效，是三层证据</h2></div>
+  <p class="lead">用户选择具体模型，意味着执行约定被固定。即使任务生成了正确代码，也不能用“测试通过”替代“实际工具和模型符合配置”的检查。</p>
+  <div class="table-wrap"><table><thead><tr><th>参数</th><th>进入执行的路径</th><th>核对来源</th></tr></thead><tbody>
+    <tr><td>Tool</td><td>tool → poc-* → Registry → ACP factory</td><td>路由日志 actual_backend；不能只看模板名称</td></tr>
+    <tr><td>Model</td><td>spawn_run.model → Session / Provider</td><td>requested_model、resolved_model，以及严格 ID 对照</td></tr>
+    <tr><td>Effort 请求</td><td>reasoning_effort → override</td><td>与 Task ID 关联的原生工具回执</td></tr>
+    <tr><td>Effort 实际值</td><td>适配器与模型实际处理</td><td>原生持久化报告 / Codex turn_context；缺失就标未报告</td></tr>
+  </tbody></table></div>
+  <h3>模型候选从哪里来</h3>
+  <p><code>provider_models.json</code> 中的命名空间按工具区分：Kiro 对应 <code>acp</code>，Claude 对应 <code>claude_code</code>，其余读取各自命名空间。“刷新候选”是重新读取本机缓存，不等同于向云端实时验证账号权限。</p>
+  <p>Claude 的明确模型在 <code>prepare</code>、<code>submit</code> 和每次 <code>next</code> 前检查是否已被该工具公布。候选未出现时停止；已保存的可移植定义和旧快照不因此被改写。Codex 当前候选还会补入本 PoC 观察过的模型，完整动态目录与逐模型 Effort 筛选尚未全部接通。</p>
+  <p>候选被公布也不是权限保证：组织策略、服务端拒绝或工具降级仍可能改变实际模型，所以执行后还要核对。<code>auto/default</code> 表示允许后端选择模型；当前 Schema 不允许它们搭配非空 Effort。</p>
+  {{diagram:model}}
+  <h3>Codex 为什么需要内部组合 ID</h3>
+  <p>本机联调发现，裸模型 ID 与默认 Effort 的解析可能让本次覆盖失效；但原生公开 <code>spawn_run</code> Schema 又拒绝含方括号的模型 ID。因此，公开配置保持 model / effort 分开，参数验证后在 Registry 内部生成 <code>model[effort]</code>，再由原生 ACP 逻辑拆分设置。这是版本兼容桥接，不是新协议。</p>
+  <p>观察器还可以按工具 Session 读取 Codex 的 <code>turn_context</code> 元数据作为直接证据。无法取得时保留来源和未知状态，不能用模型在回答中自报的 Effort 代替。</p>
+  <div class="lab">
+    <div class="lab-header"><svg class="icon"><use href="#i-sliders"/></svg><div><b>参数核对演示</b><span>抽象模型 ID，仅展示当前 accept 的判断，不是可用模型目录</span></div></div>
+    <label class="inline-label" for="gate-case">选择证据组合<select id="gate-case"><option value="match">请求与实际完全匹配</option><option value="model">工具结束，但模型不匹配</option><option value="effort">实际 Effort 与请求不匹配</option><option value="unknown">实际 Effort 未报告</option><option value="stale">观察快照过期</option><option value="handoff">交接文件缺失</option><option value="receipt">缺少原生 Task 回执</option></select></label>
+    <div class="table-wrap"><table class="gate-table"><thead><tr><th>检查项</th><th>期望</th><th>观察</th></tr></thead><tbody id="gate-evidence"></tbody></table></div>
+    <div id="gate-result" class="lab-result" aria-live="polite"></div>
+  </div>
+  <div class="callout amber"><svg class="icon"><use href="#i-eye"/></svg><div><strong>未报告不等于失败，也不等于已生效</strong><p>当前 <code>accept</code> 对“存在实际值且不匹配”才拒绝；实际 Effort 为空时不会单独阻断。报告仍必须明确显示未报告，不能把请求值填成实际值。</p></div></div>
+  <p>空 Effort 表示不添加本次覆盖，继续继承 KiroCrew 的角色 / 默认配置和工具默认值，不保证清空全部上游默认。OpenCode 当前路径仅允许空 Effort；<code>max</code> 等档位不能被宣传为所有工具和模型都支持。</p>
+  {{source:models|查看 Claude 运行前模型检查}}
+  {{source:accept|查看实际模型与 Effort 的核对条件}}
+</section>
+
+<section class="chapter" id="context" data-title="Context、Memory 与续作" data-group="跟踪一次执行">
+  <div class="chapter-heading"><span class="chapter-no">08</span><h2>共享的是任务证据，不是四个模型的私有记忆</h2></div>
+  <p class="lead">新加入一个 Agent，不会自动知道前面所有对话。MVP 通过明确的文件路径、前置结果和同一运行目录，让下游重新读取本次任务需要的上下文。</p>
+  {{diagram:context}}
+  <div class="context-tabs" role="group" aria-label="查看不同层次的上下文"><button data-context="run" class="active" aria-pressed="true">Run 共享资料</button><button data-context="task" aria-pressed="false">本步指令</button><button data-context="private" aria-pressed="false">工具私有 Session</button><button data-context="memory" aria-pressed="false">长期 Memory</button></div>
+  <div id="context-detail" class="context-detail" aria-live="polite"></div>
+  <h3>完整信息怎样越过 5,000 字符限制</h3>
+  <p>原生 <code>spawn_run.task</code> 长度上限是 5,000 字符。<code>next_step</code> 把完整用户需求、本步任务和前置结果路径写进 <code>&lt;step&gt;-instructions.md</code>；分派文本只带摘要、完整指令路径与 <code>REQUEST.md</code> 路径。</p>
+  <p>完整原生返回保存为 <code>&lt;step&gt;-result.txt</code>，前序 handoff 文件也以路径进入下一步。这样没有把超长内容直接截断成唯一依据，但仍需要 Agent 实际读取文件。文件是否完整、路径是否正确、说明是否遗漏，仍影响执行质量。</p>
+  <div class="comparison"><article><span class="tag green">优势</span><h4>可追溯、可复查</h4><p>文件、返回和收据保留在 Run 下，可以重新读取，不依赖一个不断增长的聊天窗口。</p></article><article><span class="tag amber">成本</span><h4>重新读取与重复理解</h4><p>不同工具分别消耗 Token 理解资料，没有跨工具 KV Cache。长文件、重复描述与错误交接仍会降低效率。</p></article><article><span class="tag gray">边界</span><h4>不是永久保活</h4><p><code>keep=true</code> 仍受原生保留策略约束；证据包不是全部私有会话状态的备份。</p></article></div>
+  <h3>Memory 在本 MVP 中的角色</h3>
+  <p>子任务固定 <code>include_memory=false</code>，避免无关长期记忆干扰明确的演示任务。KiroCrew 原有 Memory 和历史 Sessions 保留；其他原生项目 / 教训上下文仍按 KiroCrew 自己的默认处理。这里没有实现团队共享 Memory，也不能从“跨工具读文件”推导出长期记忆会自动同步。</p>
+  <h3>同工具续作如何保存身份</h3>
+  {{diagram:continue}}
+  <p><code>spawn_continue</code> 可以在同一工具 Conversation 中补齐交付，但会生成新 Task ID。观察器从父 App 的原生回执确认新任务与 Conversation 的关系，再核对持久化的 Crew Session 归属。旧接受记录保存在 <code>accepted/previous/</code>，新任务仍要通过全部交接条件；空返回 <code>_No response._</code> 不被接受。</p>
+  <h3>已安装的 Tools、Skills 和 MCP 能被加载吗？</h3>
+  <div class="table-wrap"><table><thead><tr><th>层次</th><th>基线中已核对的加载机制</th><th>需要观察什么</th></tr></thead><tbody>
+    <tr><td>Claude</td><td>适配器启用 user / project / local settingSources，结合本次 cwd</td><td>项目规则是否在当前工作区，权限和依赖是否可用</td></tr>
+    <tr><td>Codex</td><td>原生 App Server，按 cwd 刷新 skills/list</td><td>发现技能不等于已经读取或执行它</td></tr>
+    <tr><td>Kiro</td><td>Agent resources 的 skill:// 映射与 Crew 受管理技能发现</td><td>当前 poc-* 的空 resources 不能理解成“加载全部技能”</td></tr>
+    <tr><td>MCP</td><td>Crew 投射和工具自己的配置分别生效</td><td>服务名、认证、权限与后端支持；模板空 mcpServers 不等于原生工具所有 MCP 都关闭</td></tr>
+  </tbody></table></div>
+  <p>原业务仓库的技能不会因为“在同一台机器”就自动进入本次独立 workspace。正确证据顺序是<strong>已发现 → 已读取 / 注入 → 实际执行</strong>。本报告承接基线源码核对，不声称已触发并测试本机全部技能。</p>
+  {{source:next_step|查看完整指令、结果文件与前置交接}}
+</section>
+
+<section class="chapter" id="handoff" data-title="交接核对与质量边界" data-group="跟踪一次执行">
+  <div class="chapter-heading"><span class="chapter-no">09</span><h2>accept 接受的是可核查的交接</h2></div>
+  <p class="lead">“任务执行结束”只是条件之一。当前实现还会核对观察快照、归属、Agent、后端、参数、原生回执、BLOCKED 标记和交接文件。</p>
+  {{diagram:handoff}}
+  <div class="table-wrap"><table><thead><tr><th>检查层</th><th>具体条件</th><th>失败时的含义</th></tr></thead><tbody>
+    <tr><td>观察有效</td><td>connected 为真，快照年龄在 0–20 秒内</td><td>证据不足 / 过期，不能凭旧页面认定成功</td></tr>
+    <tr><td>任务身份</td><td>当前步骤、task-id、parent、Agent 对应</td><td>防止拿另一条对话或前次任务的结果验收</td></tr>
+    <tr><td>执行结果</td><td>done 且没有 error / stopped；结果非空</td><td>区分失败、取消、未结束或空响应</td></tr>
+    <tr><td>后端与参数</td><td>actual_backend、请求模型、实际模型、原生 Effort 请求对应</td><td>任务可以已经返回，但执行约定未满足</td></tr>
+    <tr><td>续作</td><td>新回执的 Conversation 对应 Crew Session</td><td>不能只凭新 Task ID 就声称复用了正确会话</td></tr>
+    <tr><td>阻塞与交接</td><td>原生结果不含规定格式的 BLOCKED；handoff 文件存在且非空</td><td>缺少可供下一步使用的实际交接</td></tr>
+  </tbody></table></div>
+  <p>通过后，系统保存原生返回、路由、模型与 Effort 证据，以及 handoff 的 SHA-256，写入 <code>accepted/&lt;step&gt;.json</code>。不通过则写入 <code>checks/&lt;task-id&gt;.json</code>，保留错误原因，而不是抹去原任务结果。</p>
+  <div class="callout red"><svg class="icon"><use href="#i-shield"/></svg><div><strong>当前没有完成“候选代码与安全审查”的自动绑定</strong><p>收据哈希的是 handoff 文件，不是所有代码、测试与 review 的联合快照。它不能自动证明 Codex 审查的候选与 OpenCode 最终交付完全一致，也不能把非空 handoff 当成安全 PASS。</p></div></div>
+  <h3>客户演示时怎样准确说明质量</h3>
+  <p>先展示实际 candidate.diff 和测试退出结果，再展示 Review 结论及其检查范围。最后确认交付阶段有没有修改已审查核心。若候选变更，旧 Review 对新候选可能失效，需要重新验证。把候选哈希、审查结论和写回绑定，是下一阶段明确的增强项。</p>
+  <p>工作者报告 BLOCKED 时停止，缺失测试时标明未运行。当前没有通用自动重试、任意分支、并行或强制质量门禁；图中的绿色“已交接”不能自动解释成“生产可发布”。</p>
+  {{source:accept|逐项查看 accept 的实际实现}}
+</section>
+
+<section class="chapter" id="observation" data-title="进度、状态与证据来源" data-group="跟踪一次执行">
+  <div class="chapter-heading"><span class="chapter-no">10</span><h2>状态报告说明发生了什么，不猜测模型完成了多少</h2></div>
+  <p class="lead">整体进度 = 已接受交接的任务数 ÷ 总任务数。一个长时间运行的编码任务不会靠动画把百分比慢慢填满。</p>
+  <div class="status-spectrum"><div class="green"><b>已交接</b><span>accept 已通过</span></div><div class="blue"><b>执行中</b><span>真实原生状态</span></div><div class="amber"><b>待处理</b><span>授权 / 核对 / 阻塞</span></div><div class="red"><b>执行失败</b><span>原生错误证据</span></div><div class="gray"><b>待执行</b><span>尚未调度 / 排队</span></div></div>
+  <h3>观察器把哪些证据放在一起</h3>
+  <ul class="plain-list">
+    <li><strong>原生任务与权限：</strong>读取 <code>/api/spawn</code>、<code>/api/approvals</code>，得到实际状态与待处理请求。</li>
+    <li><strong>父 App 工具回执：</strong>从本 Run 的原生记录关联 <code>spawn_run / spawn_continue</code>、Task ID、参数和 Conversation。</li>
+    <li><strong>Factory 路由：</strong><code>provider-routing.jsonl</code> 记录实际 Provider 后端，不依赖模型自述。</li>
+    <li><strong>工具 / Crew 元数据：</strong>查找请求模型、解析模型、可用的 Effort 观察值，以及工具 Session。</li>
+    <li><strong>交接与检查文件：</strong>已接受、未通过和缺失证据按 Run 关联，形成 live / report 投影。</li>
+  </ul>
+  <h3>几个常见画面应该怎样读</h3>
+  <div class="table-wrap"><table><thead><tr><th>画面</th><th>可以得出的结论</th><th>不能得出的结论</th></tr></thead><tbody>
+    <tr><td>已拿到 Task ID，但任务列表无记录</td><td>可能已接收、仍在排队；回执可证明请求归属</td><td>不能凭空标成运行中或推断 actual_backend</td></tr>
+    <tr><td>原生结果已返回，模型不匹配</td><td>执行结束，但交接未通过</td><td>不能把它统一叫“代码执行失败”</td></tr>
+    <tr><td>工作台断连 / 旧 Session 返回 404</td><td>保留最后快照并展示同步原因</td><td>不能自动删除 Session，也不能伪造成功</td></tr>
+    <tr><td>实际 Effort、耗时或 Token 未报告</td><td>该字段缺少可靠证据</td><td>不能用请求值、估算或另一个工具的数据补齐</td></tr>
+  </tbody></table></div>
+  <p>实际 UI 在断连、快照超过 15 秒或系统要求减少动态效果时停止运行段动画。<code>accept</code> 的有效快照阈值是 20 秒，两者目的不同：前者避免视觉上假装实时，后者决定能否使用观察证据验收。</p>
+  <p>Session 归档不意味着任务停止；关闭浏览器也不意味着原生执行被取消。界面应显示真实执行状态，而不是把 UI 生命周期当作任务生命周期。</p>
+  <div class="callout blue"><svg class="icon"><use href="#i-file"/></svg><div><strong>看得见“证据来源”，才便于排查问题</strong><p>一个有效报告应同时保留配置值、原生请求、实际观察、任务身份和错误原因。<code>dispatch-*.json</code> 只是期望参数文件，本身不证明调用已经发生。</p></div></div>
+  {{source:observer|查看本机只读 Gateway 观察入口}}
+</section>
+
+<section class="chapter" id="auth" data-title="认证入口与权限隔离" data-group="跟踪一次执行">
+  <div class="chapter-heading"><span class="chapter-no">11</span><h2>进入原生对话时，认证由原生机制完成</h2></div>
+  <p class="lead">普通 <code>/chat?sid=...</code> 链接只指定对话，不携带登录状态。工作台提供独立入口，在主机侧取得本次登录地址，再由 KiroCrew 建立浏览器 Session。</p>
+  {{diagram:auth}}
+  <h3>为什么不会要求用户复制 Token</h3>
+  <p><code>crew-entry</code> 先以 run ID 调用同源 <code>/api/app-entry</code>。服务端验证 Host、Origin、自定义请求头和 Run，绑定到快照中确定的父 Session。主机侧使用已有 <code>.local_secret</code> 请求原生 Token，登录地址只返回给本次入口响应。</p>
+  <p>工作台不把 Token 存进配置、Run 快照、静态 HTML、自己的 localStorage 或报告。原生机制处理 HttpOnly Cookie；文档记录的链接交换窗口最长 5 分钟，申请的浏览器 Session 生命周期是 8 小时。这两种时间不应混为一谈。</p>
+  {{diagram:boundaries}}
+  <h3>配置页与交付预览为什么使用不同主机名</h3>
+  <p>工作台在 <code>127.0.0.1:8917</code>，交付预览在 <code>localhost:8917</code>。它们是不同浏览器 Origin；服务端对配置修改要求明确 Host / Origin / Header，预览路由另外限制路径、文件类型和 CSP。预览内容不能直接使用工作台修改接口。</p>
+  <p>这保护的是当前可信本机场景中的入口边界，不是完整的多用户隔离。owner Token 不代表每个团队成员各自的权限；未来 Enterprise 还需要服务端项目授权、隔离 Worker 与审计。</p>
+  <h3>工具权限仍回到 KiroCrew 处理</h3>
+  <p>父子任务的权限请求沿原生链路返回。客户演示应打开 KiroCrew 查看实际请求、操作范围和结果，不需要自己手写 MCP 配置，也不应为了“演示流畅”把所有工具设置成无条件允许。</p>
+  <p>OpenCode 的当前集成曾出现 <code>fs/write_text_file</code> 方法不兼容，阶段指令会使用其已有 Shell 配合 Python / Node 完成文件操作。这条兼容路径仍须获得原生权限；Shell 被拒绝就停止，不增加自定义 RPC，也不绕过权限。</p>
+  {{source:auth|查看原生登录地址的生成}}
+  {{source:app_entry|查看 Run 与父 Session 的绑定}}
+</section>

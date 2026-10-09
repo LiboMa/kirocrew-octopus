@@ -45,6 +45,7 @@ ACP 驱动 Agent 会话，MCP 提供工具调用。工作台不绕过 KiroCrew �
 
 | 目的 | 文档 |
 |---|---|
+| 通过图表、动画和源码理解 MVP | [离线交互 HTML 报告](docs/workflow-mvp-report/index.html) |
 | 下一阶段做什么、如何验收 | [迭代计划](PLAN.md) |
 | 查看后续 EC2 部署设计 | [EC2-001 实验计划](docs/experiments/EC2-001.md) |
 | 了解现有实现与公开基线 | [架构与验证边界](docs/BASELINE.md) |

@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KiroCrew ON 白皮书：使用流程与适用场景</title>
+<style>
+:root{
+  --ink:#1b1f27; --ink2:#454c5a; --ink3:#7a8190; --line:#e2e5ea; --soft:#f4f6f8;
+  --acc:#0f7d6d; --acc-soft:#eef7f5; --blue:#1d6d8f; --purple:#6a4c9c; --gold:#a8650a; --red:#b9381c; --green:#2e7d32;
+  --serif:"Songti SC","STSong","Source Han Serif SC","Noto Serif SC","Noto Serif CJK SC",serif;
+  --sans:"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#fff;color:var(--ink);font:16.5px/1.8 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--blue);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{display:grid;grid-template-columns:290px minmax(0,1fr)}
+nav.toc{position:sticky;top:0;height:100vh;overflow:auto;border-right:1px solid var(--line);padding:30px 24px 40px;font-size:14px;line-height:1.6;background:#fbfbfc}
+nav.toc .brand{font-family:var(--serif);font-size:19px;font-weight:600;margin-bottom:4px}
+nav.toc .ver{color:var(--ink3);font-size:12.5px;margin-bottom:22px}
+nav.toc ol{list-style:none;margin:0;padding:0}
+nav.toc li{margin:0 0 6px}
+nav.toc li.sub{padding-left:16px;font-size:13px}
+nav.toc a{color:var(--ink2)} nav.toc a:hover{color:var(--acc);text-decoration:none}
+main{max-width:940px;padding:64px 72px 140px}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:600;color:var(--ink);line-height:1.35}
+h2{font-size:31px;margin:84px 0 20px;padding-top:16px;border-top:2px solid var(--ink)}
+h3{font-size:21.5px;margin:42px 0 12px}
+h4{font-size:17.5px;margin:26px 0 8px}
+p{margin:0 0 14px}
+ul,ol{margin:0 0 16px;padding-left:1.4em} li{margin:0 0 6px}
+b,strong{font-weight:600}
+code{font-family:var(--mono);font-size:.86em;background:var(--soft);padding:.08em .38em;border-radius:4px;color:#22313f}
+pre{font-family:var(--mono);font-size:13.5px;line-height:1.65;background:#11141a;color:#e3e5e8;padding:18px 22px;border-radius:10px;overflow:auto;margin:18px 0}
+pre .c{color:#7d8592} pre .k{color:#f2c94c} pre .t{color:#7cc4dd} pre .s{color:#9ad08f}
+table{border-collapse:collapse;width:100%;font-size:14.5px;line-height:1.6;margin:18px 0 22px}
+th,td{border-bottom:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--ink2);background:var(--soft);white-space:nowrap}
+td:first-child{font-weight:500;color:var(--ink)}
+figure{margin:28px 0 30px}
+figure img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+figure.half img{width:72%;margin:0 auto}
+figure.narrow img{width:52%;margin:0 auto}
+figure.pair{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+figure.pair figcaption{grid-column:1 / -1}
+figcaption{font-size:13.5px;color:var(--ink3);margin-top:9px;line-height:1.6}
+figcaption b{color:var(--ink2)}
+.callout{border-left:3px solid var(--acc);background:var(--acc-soft);padding:13px 18px;margin:20px 0;border-radius:0 8px 8px 0}
+.callout.warn{border-left-color:var(--red);background:#fbf1ee}
+.callout.note{border-left-color:var(--blue);background:#eef5f9}
+.callout p:last-child{margin-bottom:0}
+.lead{font-size:18.5px;line-height:1.85;color:var(--ink2)}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}
+.kv div{border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.kv .n{font-family:var(--serif);font-size:30px;font-weight:600;line-height:1.1}
+.kv .l{font-size:13px;color:var(--ink3);margin-top:6px;line-height:1.5}
+.cover{padding:30px 0 10px}
+.cover .eyebrow{font-family:var(--serif);color:var(--acc);font-size:17px}
+.cover h1{font-size:50px;margin:10px 0 16px;letter-spacing:.01em}
+.cover .sub{font-size:21px;color:var(--ink2);font-family:var(--serif);margin-bottom:26px}
+.meta{font-size:14px;color:var(--ink3);line-height:1.9;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin:22px 0}
+.meta b{color:var(--ink2);font-weight:500}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:44px;margin-bottom:14px}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;font:600 14px/28px var(--sans);text-align:center}
+.tag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 9px;color:var(--ink2);margin-right:4px;line-height:1.9}
+.ok{color:var(--green);font-weight:600} .no{color:var(--red);font-weight:600} .mid{color:var(--gold);font-weight:600}
+.diagram{border:1px solid var(--line);border-radius:12px;padding:18px;background:#fcfcfd;margin:24px 0 8px}
+.diagram svg{display:block;width:100%;height:auto}
+.small{font-size:14px;color:var(--ink3)}
+.bar{display:grid;grid-template-columns:150px 1fr 56px;align-items:center;gap:12px;font-size:14px;margin:8px 0}
+.bar .tr{height:16px;background:var(--soft);border-radius:4px;position:relative}
+.bar .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.bar .v{font-variant-numeric:tabular-nums;text-align:right;color:var(--ink2)}
+.back{display:none}
+@media screen and (max-width:1000px){ .wrap{display:block} nav.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)} main{padding:32px 22px 80px} .kv{grid-template-columns:repeat(2,1fr)} figure.pair{grid-template-columns:1fr} figure.half img,figure.narrow img{width:100%} }
+@media print{
+  @page{size:A4;margin:15mm 14mm 16mm}
+  body{font-size:11pt;line-height:1.7}
+  nav.toc{display:none} .wrap{display:block} main{max-width:none;padding:0}
+  h2{break-before:page;margin-top:0} h3,h4{break-after:avoid}
+  figure,table,pre,.diagram,.callout,.kv{break-inside:avoid}
+  a{color:inherit}
+  pre{white-space:pre-wrap}
+  .cover{min-height:250mm}
+  figure{margin:16px 0 18px} figure.pair{gap:10px} figcaption{font-size:9pt}
+  .kv .n{font-size:22pt}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="目录">
+  <div class="brand">KiroCrew ON 白皮书</div>
+  <div class="ver">MVP 0.2.0rc1 · 2026-11-19</div>
+  <ol>
+    <li><a href="#summary">摘要</a></li>
+    <li><a href="#why">1　为什么需要它</a></li>
+    <li><a href="#what">2　产品定义</a></li>
+    <li><a href="#concepts">3　核心概念</a></li>
+    <li><a href="#arch">4　系统架构</a></li>
+    <li class="sub"><a href="#arch-layers">4.1 分层</a></li>
+    <li class="sub"><a href="#arch-life">4.2 会话的生命周期</a></li>
+    <li class="sub"><a href="#arch-quality">4.3 质量机制</a></li>
+    <li class="sub"><a href="#arch-trust">4.4 信任边界</a></li>
+    <li><a href="#flow">5　使用流程</a></li>
+    <li class="sub"><a href="#flow-setup">5.1 准备</a></li>
+    <li class="sub"><a href="#flow-connect">5.2 接入 Coding Agent</a></li>
+    <li class="sub"><a href="#flow-start">5.3 发起开发</a></li>
+    <li class="sub"><a href="#flow-plan">5.4 规划</a></li>
+    <li class="sub"><a href="#flow-run">5.5 执行与互审</a></li>
+    <li class="sub"><a href="#flow-gate">5.6 门禁与自动纠错</a></li>
+    <li class="sub"><a href="#flow-observe">5.7 观察进度</a></li>
+    <li class="sub"><a href="#flow-output">5.8 查看与交付产出</a></li>
+    <li class="sub"><a href="#flow-iterate">5.9 迭代</a></li>
+    <li class="sub"><a href="#flow-collab">5.10 协作与复用</a></li>
+    <li><a href="#scenarios">6　适用场景</a></li>
+    <li><a href="#case">7　案例：一次研究会话</a></li>
+    <li><a href="#admin">8　管理与治理</a></li>
+    <li><a href="#deploy">9　部署形态</a></li>
+    <li><a href="#data">10　运行数据</a></li>
+    <li><a href="#limits">11　当前限制</a></li>
+    <li><a href="#roadmap">12　路线图</a></li>
+    <li><a href="#quickstart">13　快速上手</a></li>
+    <li><a href="#appendix">附录</a></li>
+  </ol>
+</nav>
+
+<main>
+<section class="cover">
+  <div class="eyebrow">白皮书</div>
+  <h1>KiroCrew ON</h1>
+  <div class="sub">一个 7×24 在线的多 Agent 研发协作空间：使用流程与适用场景</div>
+  <figure style="margin:8px 0 0">
+    <img src="img/login.webp" width="1600" height="1000" alt="KiroCrew ON 登录页：一个需求，多种 Coding Agent，同一条开发脉络">
+    <figcaption><b>图 1</b>　KiroCrew ON 的登录页。线上实例：https://kirocrew-on.tinyboat.blog</figcaption>
+  </figure>
+  <div class="meta">
+    <b>版本</b>　MVP 0.2.0rc1（线上实例，部署于 AWS us-east-1）<br>
+    <b>日期</b>　2026-11-19<br>
+    <b>依据</b>　线上控制台截图（2026-11-17、11-19）；平台 API 与 MCP 工具的实际返回；kirocrew-on 仓库 <code>feat/mvp-0.2.0</code> 分支的文档与代码<br>
+    <b>读者</b>　准备使用的开发者与 Team，以及负责部署和管理的平台管理员
+  </div>
+</section>
+
+<section id="summary">
+  <h2>摘要</h2>
+  <p class="lead">KiroCrew ON 把“写代码、做调研、出报告”这类研发任务，从你本机的 Coding Agent 会话里搬到一个一直在线的后台空间。你用一句话交代需求；后台由多个 Agent 分工规划、实现、互审，平台核对每一步的证据，失败时自动诊断并返工；结果随时可以查看、预览、续作，也可以和 Team 共享。</p>
+  <ul>
+    <li><b>入口不变</b>：在 Claude Code、Kiro CLI、Codex、Kiro IDE 里直接说，或用 Web 控制台的四步向导。</li>
+    <li><b>先规划，再执行</b>：KiroCrew 的 Kiro Agent 识别意图、补全需求和验收标准，拆成 1～7 个任务，并为每个任务指定 Coding 工具和模型。</li>
+    <li><b>作者与审查者分开</b>：例如 Kiro 或 Claude Code 实现，Codex 审查；Evaluator 逐条核对验收项，以自己的核对为准，不采信作者的自述。</li>
+    <li><b>完成由平台判定</b>：Agent 写交接文件和结论，平台核对原生执行、实际工具与模型、交接和结论之后，任务才算完成；未通过时由协调者读证据、定修法，最多自动纠错 1～5 轮。</li>
+    <li><b>一直在线、可共享</b>：会话、任务、每次执行和每个版本都有记录；个人与 Team 共享会话、工作流和执行环境；平台自托管在你自己的 AWS 账号里。</li>
+  </ul>
+  <div class="kv">
+    <div><div class="n">140</div><div class="l">个会话（2026-10-11 至 11-11）</div></div>
+    <div><div class="n">114</div><div class="l">个已完成，占 81%</div></div>
+    <div><div class="n">411</div><div class="l">个任务，532 次执行（Attempt）</div></div>
+    <div><div class="n">80</div><div class="l">个会话用了两种及以上的 Coding 工具</div></div>
+  </div>
+  <p class="small">数据来自线上实例的管理员视角（<code>GET /v1/runs?all=1</code>，2026-11-19 读取），包含平台自身的验收会话。详见第 10 节。</p>
+</section>
+
+<section id="why">
+  <h2>1　为什么需要它</h2>
+  <p>Coding Agent 已经能独立写出可用的代码和报告。真正卡住团队的，是围绕它的四个摩擦：</p>
+  <table>
+    <tr><th>摩擦</th><th>表现</th><th>KiroCrew ON 的做法</th></tr>
+    <tr><td>人得守着</td><td>会话跑在本机终端里，合上电脑就停，换台电脑接不上</td><td>任务在服务器上的执行环境里持续运行，随时回来查看、续作</td></tr>
+    <tr><td>自己批改自己</td><td>Agent 说“做完了、测过了”，只是自述，不是证据</td><td>交接文件与结论由平台核对；审查用另一种工具；Evaluator 逐条核对验收项</td></tr>
+    <tr><td>失败了要人接</td><td>报错后要人读日志、判断原因、改提示、再派一次</td><td>协调者读失败证据，决定重试、返工、换工具或重新规划，平台执行，有轮数上限</td></tr>
+    <tr><td>成果困在一台电脑上</td><td>团队看不到过程；换工具或模型，上下文就断</td><td>会话、产出、版本都在平台上，个人和 Team 共享，可在原会话、原工作区续作</td></tr>
+  </table>
+  <p>设计上有一条贯穿始终的原则：<b>确定性的事交给代码，需要理解和判断的事交给 Agent</b>。会话登记、状态机、版本、权限、交接校验、派发幂等由平台代码负责；意图识别、需求补全、编码、审查判断、失败诊断由 Agent 负责。</p>
+</section>
+
+<section id="what">
+  <h2>2　产品定义</h2>
+  <p><b>一句话</b>：KiroCrew ON 是一个 7×24 在线的研发协作空间。你在习惯的 Coding Agent 里用一句话交代任务，后台由多个 Agent 分工规划、实现、互审并自动纠错；个人、Team 与组织在同一空间里共享会话、工作流与成果。</p>
+  <table>
+    <tr><th>它是</th><th>它不是</th></tr>
+    <tr><td>后台协作空间：任务交出去后在服务器上持续执行，随时回来查看与续作</td><td>新的 IDE 或新的 Coding Agent：你继续用自己的工具</td></tr>
+    <tr><td>多 Agent 编排：KiroCrew Agent 规划，Kiro、Claude Code、Codex 分工执行与互审</td><td>模型或模型网关：模型由各工具与 KiroCrew 的原生配置提供</td></tr>
+    <tr><td>共享空间：个人空间、Team 空间；工作流可共享给个人或 Team</td><td>绑定某个工具或模型的系统：工具与模型可以按任务指定</td></tr>
+    <tr><td>质量由平台把关：交接与结论经校验才算完成，失败时自动诊断返工</td><td>CI/CD 或自动发布：不合并、不部署到生产，结果先给人看</td></tr>
+    <tr><td>自托管：部署在你自己的 AWS 账号，执行环境按个人或 Team 隔离</td><td>托管 SaaS 或聊天机器人：对话只是入口，会话、任务、证据都有结构化记录</td></tr>
+  </table>
+  <h3>面向谁</h3>
+  <table>
+    <tr><th>角色</th><th>能做什么</th></tr>
+    <tr><td>开发者</td><td>在 Coding Agent 或控制台提交需求、查看进度、观察 Agent 对话、预览产出、在原会话续作、下载源码</td></tr>
+    <tr><td>Team 成员 / owner</td><td>在 Team 空间提交会话，成员共享查看与操作；owner 管理成员、角色、并发上限</td></tr>
+    <tr><td>平台管理员</td><td>创建用户与 Team；登记、共享、分配、停用执行环境；管理 Token 与仓库凭证；查看全部会话与审计</td></tr>
+  </table>
+</section>
+
+<section id="concepts">
+  <h2>3　核心概念</h2>
+  <p>理解下面十个词，就能读懂控制台上的每一个画面。</p>
+  <table>
+    <tr><th>概念</th><th>含义</th></tr>
+    <tr><td>空间</td><td>会话的归属。<b>个人空间</b>只有自己可见；<b>Team 空间</b>对 Team 成员共同可见。每个空间被分配到一个执行环境。</td></tr>
+    <tr><td>会话（Session）</td><td>一次开发需求的全部记录：需求、规划、任务、每次执行、版本、事件和产出。会话是状态的唯一来源。</td></tr>
+    <tr><td>任务（Task）</td><td>会话里的一步，写明名称、提示词、Coding 工具、模型、Effort、阶段、角色和验收项。任务按顺序执行。</td></tr>
+    <tr><td>执行（Attempt）</td><td>任务的一次运行，对应 KiroCrew 里的一个原生子任务。重试、返工都会产生新的 Attempt，旧的保留为证据。</td></tr>
+    <tr><td>交接文件</td><td>每次执行结束时，Agent 写下 <code>handoff.md</code>（做了什么、怎么验证）和 <code>outcome.json</code>（结论 pass、changes_requested 或 blocked）。</td></tr>
+    <tr><td>门禁</td><td>平台对每次执行的逐项核对：原生执行是否完成、实际工具与模型是否一致、交接与结论是否有效、结论是否通过。</td></tr>
+    <tr><td>纠错</td><td>门禁未通过时，平台派出诊断任务，由协调者读证据并给出决定：重试、返工（退回上游任务）、换工具、重新规划或等待用户。</td></tr>
+    <tr><td>工作流</td><td>可复用的任务链，有版本，可共享给个人或 Team。新建开发时可以直接套用。</td></tr>
+    <tr><td>执行环境</td><td>真正跑 Agent 的地方：一个隔离的执行边界（独立 OS 用户或独立主机），内有平台的 Worker 和一个 KiroCrew Gateway。分<b>共享</b>和<b>专属</b>两种。</td></tr>
+    <tr><td>修订（Revision）</td><td>会话的每次变更（创建、规划、续作、自动纠错）留下的完整快照，可任选两版对比需求与 Prompt 的逐行变化。</td></tr>
+  </table>
+</section>
+
+<section id="arch">
+  <h2>4　系统架构</h2>
+  <h3 id="arch-layers">4.1　分层</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 900 470" font-family="PingFang SC, sans-serif" role="img" aria-label="KiroCrew ON 的五层架构">
+      <defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#7a8190"/></marker></defs>
+      <g font-size="13" fill="#7a8190"><text x="0" y="42">接入</text><text x="0" y="132">平台</text><text x="0" y="232">执行环境</text><text x="0" y="332">Agent</text><text x="0" y="422">模型</text></g>
+      <g font-size="14" text-anchor="middle">
+        <rect x="80" y="14" width="190" height="46" rx="8" fill="#eef7f5" stroke="#0f7d6d"/><text x="175" y="42" fill="#1b1f27">Claude Code · Codex</text>
+        <rect x="285" y="14" width="190" height="46" rx="8" fill="#eef7f5" stroke="#0f7d6d"/><text x="380" y="42" fill="#1b1f27">Kiro CLI · Kiro IDE</text>
+        <rect x="490" y="14" width="190" height="46" rx="8" fill="#f4f6f8" stroke="#7a8190"/><text x="585" y="42" fill="#1b1f27">Web 控制台</text>
+        <text x="380" y="80" fill="#7a8190" font-size="12">Skill + MCP 服务器（本机 stdio）　HTTPS · 用户 Token</text>
+        <rect x="80" y="96" width="600" height="64" rx="10" fill="#eef5f9" stroke="#1d6d8f" stroke-width="1.5"/>
+        <text x="380" y="122" fill="#1d6d8f" font-weight="600">KiroCrew ON 平台（API · Service · Engine · SQLite）</text>
+        <text x="380" y="146" fill="#454c5a" font-size="12.5">身份与权限　个人 / Team 空间　会话状态机与版本　调度　门禁判定　自动纠错　事件与审计</text>
+        <text x="380" y="180" fill="#7a8190" font-size="12">Worker Token（平台单向驱动 Worker）</text>
+        <rect x="80" y="194" width="290" height="70" rx="10" fill="#fff" stroke="#7a8190"/><text x="225" y="222" fill="#1b1f27">共享执行环境</text><text x="225" y="246" fill="#7a8190" font-size="12">平台主机上的执行边界（独立 OS 用户）</text>
+        <rect x="390" y="194" width="290" height="70" rx="10" fill="#fff" stroke="#7a8190"/><text x="535" y="222" fill="#1b1f27">Team 专属 Worker 主机</text><text x="535" y="246" fill="#7a8190" font-size="12">独立 EC2，只接受平台安全组，私网 TLS</text>
+        <rect x="80" y="294" width="600" height="64" rx="10" fill="#f5f1fa" stroke="#6a4c9c" stroke-width="1.5"/>
+        <text x="380" y="320" fill="#6a4c9c" font-weight="600">KiroCrew 原生会话</text>
+        <text x="380" y="344" fill="#454c5a" font-size="12.5">协调者 poc-coordinator → 子 Agent：poc-kiro · poc-claude · poc-codex · 诊断 poc-diagnose</text>
+        <rect x="80" y="394" width="600" height="50" rx="10" fill="#fff" stroke="#7a8190"/><text x="380" y="424" fill="#454c5a" font-size="13">Amazon Bedrock 等，由各工具的原生配置提供，可替换</text>
+      </g>
+      <g stroke="#7a8190" stroke-width="1.5"><path d="M380,62 L380,92" marker-end="url(#a)"/><path d="M225,162 L225,190" marker-end="url(#a)"/><path d="M535,162 L535,190" marker-end="url(#a)"/><path d="M380,266 L380,290" marker-end="url(#a)"/><path d="M380,360 L380,390" marker-end="url(#a)"/></g>
+      <g font-size="13"><path d="M700,330 C800,300 800,150 700,128" stroke="#b9381c" stroke-width="1.6" stroke-dasharray="6 5" fill="none"/>
+        <path d="M772,224 l14,14 M786,224 l-14,14" stroke="#b9381c" stroke-width="3"/>
+        <text x="800" y="220" fill="#b9381c">KiroCrew</text><text x="800" y="238" fill="#b9381c">不调用平台</text><text x="800" y="260" fill="#7a8190" font-size="12">结果由 Worker</text><text x="800" y="276" fill="#7a8190" font-size="12">轮询取得</text></g>
+    </svg>
+  </div>
+  <p class="small" style="margin-top:6px"><b>图 2</b>　KiroCrew ON 的分层。依据 kirocrew-on 仓库 docs/ARCHITECTURE.md。</p>
+  <p>每一层只做自己的事：</p>
+  <ul>
+    <li><b>平台</b>负责身份、空间、会话状态、调度和质量判定，<b>不运行 Agent</b>，也不直接访问任何 Gateway。</li>
+    <li><b>Worker</b> 是平台派驻在每个执行边界里的代理：准备源码、把平台的操作翻译成 Gateway 调用、收集证据（原生状态、路由日志、交接文件），不做权限判断。</li>
+    <li><b>KiroCrew Gateway</b> 管理原生会话、协调者和子 Agent，以及批准、记忆和 ACP 路由；它不知道平台的用户和 Team。</li>
+    <li><b>Agent</b> 在源码目录里开发与验证，写交接文件和结论；不读取平台凭据，也不自行派生子任务。</li>
+  </ul>
+  <div class="callout note"><p><b>单向驱动。</b>平台经 Worker 驱动 KiroCrew，KiroCrew 从不回调平台。会话状态以平台为准，原生会话只是执行与对话记录。一个会话绑定一个原生父会话，一次执行绑定一个原生子任务；派发前先写记录再调用，回执丢失时只核对、不重发，保证同一任务不会被执行两次。</p></div>
+
+  <h3 id="arch-life">4.2　会话的生命周期</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 900 250" font-family="PingFang SC, sans-serif" role="img" aria-label="提交、准备、规划、派发、取证、判定、交付，判定未通过时回到派发">
+      <defs><marker id="b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#b9381c"/></marker></defs>
+      <path d="M40,150 L860,150" stroke="#c9ced6" stroke-width="2"/>
+      <g text-anchor="middle" font-size="14">
+        <g><circle cx="40" cy="150" r="17" fill="#fff" stroke="#a8650a" stroke-width="2"/><text x="40" y="155" fill="#a8650a" font-weight="600">1</text><text x="40" y="192" fill="#1b1f27">提交</text><text x="40" y="212" fill="#7a8190" font-size="11.5">选执行环境</text></g>
+        <g><circle cx="176" cy="150" r="17" fill="#fff" stroke="#1d6d8f" stroke-width="2"/><text x="176" y="155" fill="#1d6d8f" font-weight="600">2</text><text x="176" y="192" fill="#1b1f27">准备源码</text><text x="176" y="212" fill="#7a8190" font-size="11.5">固定 commit 基线</text></g>
+        <g><circle cx="313" cy="150" r="17" fill="#fff" stroke="#6a4c9c" stroke-width="2"/><text x="313" y="155" fill="#6a4c9c" font-weight="600">3</text><text x="313" y="192" fill="#1b1f27">规划</text><text x="313" y="212" fill="#7a8190" font-size="11.5">拆 1～7 个任务</text></g>
+        <g><circle cx="450" cy="150" r="17" fill="#fff" stroke="#0f7d6d" stroke-width="2"/><text x="450" y="155" fill="#0f7d6d" font-weight="600">4</text><text x="450" y="192" fill="#1b1f27">派发任务</text><text x="450" y="212" fill="#7a8190" font-size="11.5">工具 · 模型 · 上游交接</text></g>
+        <g><circle cx="587" cy="150" r="17" fill="#fff" stroke="#0f7d6d" stroke-width="2"/><text x="587" y="155" fill="#0f7d6d" font-weight="600">5</text><text x="587" y="192" fill="#1b1f27">收集证据</text><text x="587" y="212" fill="#7a8190" font-size="11.5">交接文件 · 原生状态</text></g>
+        <g><circle cx="724" cy="150" r="17" fill="#fff" stroke="#1d6d8f" stroke-width="2"/><text x="724" y="155" fill="#1d6d8f" font-weight="600">6</text><text x="724" y="192" fill="#1b1f27">门禁判定</text><text x="724" y="212" fill="#7a8190" font-size="11.5">逐项核对</text></g>
+        <g><circle cx="860" cy="150" r="17" fill="#2e7d32"/><text x="860" y="155" fill="#fff" font-weight="600">7</text><text x="860" y="192" fill="#1b1f27">交付</text><text x="860" y="212" fill="#7a8190" font-size="11.5">预览 · 续作</text></g>
+      </g>
+      <path d="M724,128 C700,40 480,40 456,126" stroke="#b9381c" stroke-width="1.8" fill="none" marker-end="url(#b)"/>
+      <text x="590" y="44" fill="#b9381c" font-size="13.5" text-anchor="middle">未通过：派发诊断任务，按决定重试、返工、换工具或重新规划</text>
+    </svg>
+  </div>
+  <p class="small" style="margin-top:6px"><b>图 3</b>　一次会话从提交到交付。第 3 步的规划本身也是一个任务（由 Kiro 执行），平台校验规划结果后，把生成的任务追加到同一个会话。</p>
+  <p>会话常见的状态：</p>
+  <table>
+    <tr><th>状态</th><th>含义与处理</th></tr>
+    <tr><td><code>running</code> / <code>diagnosing</code></td><td>正在执行，或正在自动诊断返工，继续等待</td></tr>
+    <tr><td><code>waiting_worker</code></td><td>所在空间还没有可用的执行环境；请管理员分配，或在提交时指定 Worker</td></tr>
+    <tr><td><code>blocked</code> / <code>failed</code></td><td>页面会写明原因和下一步；可以请协调者诊断，或修改后续作</td></tr>
+    <tr><td><code>stopped</code></td><td>被人停止；可以续作或关闭</td></tr>
+    <tr><td><code>completed</code></td><td>全部任务验收通过，可以预览、下载、发布</td></tr>
+  </table>
+
+  <h3 id="arch-quality">4.3　质量机制：门禁与自动纠错</h3>
+  <p>“完成”不是 Agent 说了算。每次执行结束，平台读出原生状态和交接文件，逐项记下判定（pass、warn、fail 或 skip）：</p>
+  <table>
+    <tr><th>门禁</th><th>核对什么</th></tr>
+    <tr><td>原生执行</td><td>KiroCrew 里的子任务确实执行完成，而不是中途报错或被停止</td></tr>
+    <tr><td>实际工具与模型</td><td>实际使用的后端、模型、Effort 与任务请求一致</td></tr>
+    <tr><td>交接文件 / 结果文件</td><td><code>handoff.md</code> 与 <code>outcome.json</code> 存在且格式有效</td></tr>
+    <tr><td>任务结论</td><td>结论为 pass；changes_requested 或 blocked 都算未通过</td></tr>
+    <tr><td>审查对象 / Evaluator</td><td>审查任务写明被审的 commit；Evaluator 对每条验收项给出证据（文件:行号、命令输出）</td></tr>
+  </table>
+  <p>未通过时，平台派出诊断任务。协调者先排除工具或原生错误，再对照源码核实问题是否成立，然后选出一个决定：</p>
+  <table>
+    <tr><th>决定</th><th>适用情况</th></tr>
+    <tr><td><code>retry</code></td><td>同一任务再跑一次，例如审查口径需要澄清</td></tr>
+    <tr><td><code>rework</code></td><td>退回上游任务修改，依赖它的下游任务按依赖自动重跑</td></tr>
+    <tr><td><code>switch_tool</code></td><td>工具本身失败时换用别的工具或模型（需在提交时允许）</td></tr>
+    <tr><td><code>replan</code></td><td>计划本身有问题，重新规划剩余任务</td></tr>
+    <tr><td><code>wait_for_user</code></td><td>缺少输入、认证或权限，写明原因，等待用户处理</td></tr>
+  </table>
+  <p>纠错有预算：每次续作后最多自动纠错 1～5 轮（提交时设置），还有自动重试次数和时间上限。用完就停下，交给人决定。</p>
+  <p>任务还带有<b>角色</b>和<b>阶段</b>。角色包括 Spec（写规格）、SDE（实现）、Challenge（对抗性检查）、Evaluator（逐条核对验收项）、集成测试、安全测试，以及平台在会话完成前追加的 Knowledge（整理长期有效的项目知识）。阶段分为发散（调研、头脑风暴）、设计（阶段末把关）和收敛（实现、撰写、测试、交付）：发散阶段的失败不阻断后续任务，收敛阶段严格把关。</p>
+
+  <h3 id="arch-trust">4.4　信任与认证边界</h3>
+  <table>
+    <tr><th>连接</th><th>凭据</th><th>说明</th></tr>
+    <tr><td>客户端 → 平台</td><td>用户 Token（read、execute、manage、admin）</td><td>控制台登录；<code>octopus connect</code> 签发 30 天的 Token；管理操作需要管理员账号且 Token 含 admin</td></tr>
+    <tr><td>Worker → 平台</td><td>一次性接入码</td><td>只在登记时使用一次；平台再回调 Worker 的健康接口核实</td></tr>
+    <tr><td>平台 → Worker</td><td>Worker Token</td><td>平台主机上走回环 HTTP；独立 Worker 主机走私网 TLS，只信任平台的私有 CA</td></tr>
+    <tr><td>Worker → Gateway</td><td>本边界的本地密钥 → 短期原生 Token</td><td>只在回环；Worker 与 Gateway 同一 OS 用户</td></tr>
+    <tr><td>浏览器 → Gateway</td><td>一次性入口链接 → 1 小时的登录 Cookie</td><td>用于“在 KiroCrew 中打开”原生会话</td></tr>
+  </table>
+  <p>权限只在平台判定。看不到的对象返回 404，看得到但当前角色不能操作的返回 403 并写明原因；管理员越权查看或操作他人会话会写入审计。</p>
+</section>
+
+<section id="flow">
+  <h2>5　使用流程</h2>
+  <p>下面按一次真实使用的顺序，从准备到交付逐步说明。截图均来自线上实例。</p>
+
+  <h3 id="flow-setup">5.1　准备（管理员，一次性）</h3>
+  <ol class="steps">
+    <li><b>部署平台。</b>当前线上实例运行在 AWS us-east-1 的 EC2 上，前面是 CloudFront；0.2.0 起提供单机版一键安装（见第 9 节）。</li>
+    <li><b>创建用户和 Team。</b>创建 Team 时指定 owner 和执行环境；成员、角色、执行环境与归档都在“管理 › Team”里维护。</li>
+    <li><b>准备执行环境。</b>在“管理 › 执行环境”里登记 Worker，并把它分配给个人空间或 Team。共享环境可服务多个空间；专属环境只服务一个人或一个 Team，可以是独立的 Worker 主机。</li>
+    <li><b>登录 Kiro。</b>执行环境的主人在“我的设置 › 执行环境”里点“登录 Kiro”，用设备码完成授权。kiro-cli 的登录会过期，过期后在同一处重新登录。</li>
+  </ol>
+  <figure>
+    <img src="img/admin-env.webp" width="1600" height="1000" alt="管理 › 执行环境：三个 Worker 的状态、类型、版本、Kiro 登录、可用工具与服务空间">
+    <figcaption><b>图 4</b>　管理 › 执行环境。每个 Worker 对应一个 KiroCrew Gateway；下方展开项写明归属、边界所有者、隔离方式和服务的全部空间。截图当时三个环境的 kiro-cli 登录都已过期，需要环境主人重新登录。</figcaption>
+  </figure>
+  <figure>
+    <img src="img/admin-teams.webp" width="1600" height="1000" alt="管理 › Team：Team 列表、执行环境、成员与角色">
+    <figcaption><b>图 5</b>　管理 › Team。每个 Team 绑定一个执行环境，成员分 Owner 和 Member。</figcaption>
+  </figure>
+
+  <h3 id="flow-connect">5.2　接入你的 Coding Agent（每人一次）</h3>
+  <p>在 kirocrew-on 仓库目录执行一条命令。它会用你的账号登录，签发一枚 30 天有效、权限为 read、execute、manage 的 Token，写入客户端的 MCP 配置，并安装同一份 Skill：</p>
+  <pre><span class="c"># Claude Code（user 范围，所有目录可用）</span>
+<span class="k">$</span> .venv/bin/python -m octopus connect claude   --url https://kirocrew-on.tinyboat.blog --username &lt;你&gt;
+<span class="c"># Kiro CLI / Kiro IDE（workspace 范围，只在指定项目生效）</span>
+<span class="k">$</span> .venv/bin/python -m octopus connect kiro     --url … --username &lt;你&gt; --project &lt;项目目录&gt;
+<span class="k">$</span> .venv/bin/python -m octopus connect kiro-ide --url … --username &lt;你&gt; --project &lt;项目目录&gt;
+<span class="c"># Codex（合并进 ~/.codex/config.toml）</span>
+<span class="k">$</span> .venv/bin/python -m octopus connect codex    --url … --username &lt;你&gt;</pre>
+  <p>连接后要<b>新开会话或重启客户端</b>，才会加载 <code>octopus_*</code> 工具。管理员需要经 Agent 管理用户和执行环境时，另连一个加 <code>--admin</code> 的连接（Token 含 admin，7 天有效），用完撤销。其他 MCP 客户端可以按仓库里的 docs/CONNECT.md 手动配置。</p>
+  <p>接入后，直接用自然语言说：</p>
+  <table>
+    <tr><th>你说</th><th>Agent 调用的工具</th><th>发生什么</th></tr>
+    <tr><td>“用 KiroCrew ON 做一个番茄钟网页，Codex 审查”</td><td><code>octopus_start</code></td><td>登记会话，返回会话 ID 和控制台链接</td></tr>
+    <tr><td>“现在做到哪了？”</td><td><code>octopus_status</code>、<code>octopus_observe</code></td><td>读取真实状态、当前任务、最近事件，以及协调者和子 Agent 的最近对话</td></tr>
+    <tr><td>“给我预览”</td><td><code>octopus_preview</code></td><td>返回 10 分钟有效的预览链接</td></tr>
+    <tr><td>“把倒计时改成两位数补零”</td><td><code>octopus_continue</code></td><td>在原会话、原工作区续作，只重跑受影响的任务</td></tr>
+    <tr><td>“上一轮改了什么？”</td><td><code>octopus_revisions</code></td><td>列出修订历史，对比两版的需求和 Prompt</td></tr>
+    <tr><td>“卡住了，帮我看看”</td><td><code>octopus_recover</code></td><td>请协调者按失败证据诊断并安排修复</td></tr>
+  </table>
+  <p>下面是 2026-11-19 在 Claude Code 里通过 MCP 调用 <code>octopus_workflows</code> 的真实返回（节选，字段已简化）：</p>
+  <pre><span class="t">octopus_workflows</span>  →  4 个工作流
+  深度 GitHub Repo 技术调研&amp;HTML 文档工作流   v2  7 步  Claude Code ×5 → Codex ×2   已共享给 1 个 Team、1 位用户
+  Claude Code 驱动的 Deep Research 工作流       v1  6 步  Claude Code ×5 → Codex     共享给我（runner）
+  完整研发链-迭代                              v3  4 步  Kiro CLI → Claude Code → Codex → Claude Code
+  Web应用功能更新验证流                        v1  6 步  Kiro CLI ×3 → Claude Code → Codex ×2   已共享给 1 个 Team（editor）</pre>
+
+  <h3 id="flow-start">5.3　发起开发</h3>
+  <p>控制台首页列出你的会话、需要处理的会话和常用模板。点“新建开发”或“输入需求，开始开发”进入四步向导。</p>
+  <figure>
+    <img src="img/home.webp" width="1600" height="1000" alt="控制台首页：会话列表、进行中、需处理、已完成计数、需要处理的会话和模板">
+    <figcaption><b>图 6</b>　控制台首页。左侧是会话列表（可搜索、按状态筛选、置顶）；右侧是进行中、需处理、已完成的计数，需要处理的会话，以及“完整研发链”“最小实现与审查”两个模板。</figcaption>
+  </figure>
+  <figure class="pair">
+    <img src="img/wizard-1.webp" width="896" height="600" alt="向导第 1 步：需求、Session 名称、执行空间、代码来源、执行 Worker">
+    <img src="img/wizard-2.webp" width="896" height="656" alt="向导第 2 步：四种编排方式">
+    <figcaption><b>图 7</b>　向导第 1、2 步。左：写需求，选执行空间和代码来源（全新项目、已有 Git 仓库，或不需要仓库的调研写作；来源必须明确选择，不会默认空项目）。右：四种编排方式。</figcaption>
+  </figure>
+  <table>
+    <tr><th>编排方式</th><th>适合</th></tr>
+    <tr><td>KiroCrew 自动规划</td><td>大多数需求。Kiro Agent 识别意图、补全需求、拆分任务并分配 Agent，直接开始执行</td></tr>
+    <tr><td>参考模板</td><td>已有成熟流程。按需求自动匹配，或选择模板、我的工作流</td></tr>
+    <tr><td>KiroCrew 推荐（先审阅）</td><td>想先看计划。由 Kiro Agent 设计工作流与 Prompt，你审阅并采用后再提交</td></tr>
+    <tr><td>导入已生成的工作流</td><td>已经在别处写好任务链。粘贴或上传 JSON、YAML 或 Markdown，按原样运行</td></tr>
+  </table>
+  <figure class="pair">
+    <img src="img/wizard-3.webp" width="896" height="940" alt="向导第 3 步：展开任务，选择阶段、Coding 工具、模型与 Effort">
+    <img src="img/wizard-4.webp" width="896" height="940" alt="向导第 4 步：确认，设置自动纠错轮数与是否允许换工具">
+    <figcaption><b>图 8</b>　向导第 3、4 步。左：每个任务单独选择 Coding 工具（Kiro CLI、Claude Code、Codex、OpenCode）、模型和 Effort，都可以留“自动”。右：确认需求和任务，设置失败时最多自动纠错几轮，以及工具本身失败时是否允许换用别的工具或模型。提交时保存需求和任务的快照，之后修改工作流库不影响这个会话。</figcaption>
+  </figure>
+
+  <h3 id="flow-plan">5.4　规划：先把需求补全</h3>
+  <p>会话的第 1 个任务是“需求分析与任务规划”，由 KiroCrew 的 Kiro Agent 完成。它写出意图，补全目标、范围（做什么、不做什么）、关键维度、可验证的验收标准、关键假设和待确认问题，再拆成 1～7 个任务。平台校验规划结果后，把任务追加到同一个会话。</p>
+  <figure>
+    <img src="img/planning.webp" width="1600" height="1000" alt="KiroCrew 规划：意图、补全后的目标、范围、对比维度与验收标准">
+    <figcaption><b>图 9</b>　一个研究类会话的规划结果：意图、目标、范围（做与不做）、对比维度和 6 条可验证的验收标准。这些验收标准会拆进各任务的验收项，最后由 Evaluator 逐条核对。</figcaption>
+  </figure>
+
+  <h3 id="flow-run">5.5　执行与互审</h3>
+  <p>任务按顺序派发到执行环境。每个任务卡片写明工具、模型、Effort、阶段、方法和来源；“执行证据与历史 Attempt”展开后可以看到每次执行的完整记录。</p>
+  <figure>
+    <img src="img/tasks.webp" width="1600" height="1000" alt="开发任务列表与右侧执行轨迹">
+    <figcaption><b>图 10</b>　开发任务列表。顶部是纠错记录与预算；每个任务卡片写明工具与方法（这里是 verification-before-completion，即先验证、再声称完成）；右侧是执行轨迹，按时间记下派发、原生状态、返工与复审。</figcaption>
+  </figure>
+  <figure class="narrow">
+    <img src="img/attempt.webp" width="674" height="1001" alt="一次 Attempt 的执行证据：请求、用量、实际后端与模型、门禁、验收项">
+    <figcaption><b>图 11</b>　一次执行（Attempt）的证据：请求的工具与模型、用量（token 与秒数）、实际后端与模型、交接结论、原生任务 ID、上下文 SHA-256；下方是门禁的逐项判定，以及 Evaluator 对每条验收项给出的证据。</figcaption>
+  </figure>
+
+  <h3 id="flow-gate">5.6　门禁与自动纠错</h3>
+  <p>未通过的执行会进入纠错记录。每一轮写明失败的任务、诊断结论、返工的任务和具体修法，精确到文件和行号；顶部的预算栏写明已用轮数，例如“纠错 2/2 轮（已用完）”。</p>
+  <figure>
+    <img src="img/recovery.webp" width="1600" height="1000" alt="纠错记录：第 1 轮与第 2 轮的诊断和返工指令">
+    <figcaption><b>图 12</b>　纠错记录。协调者先确认执行本身正常、问题出在内容；再对照源码逐条核实审查发现；最后决定退回上游任务（rework），下游任务按依赖自动重跑。第 7 节展开这个案例。</figcaption>
+  </figure>
+
+  <h3 id="flow-observe">5.7　观察进度</h3>
+  <p>三种方式看 Agent 正在做什么：</p>
+  <ul>
+    <li><b>KiroCrew 会话面板</b>：在控制台里读协调者与子 Agent 的最近对话，以及平台写回的每次执行开始与返回的说明。凡能查看会话的人都可以用，不需要原生登录。</li>
+    <li><b>执行轨迹</b>：事件流实时推送，记录每一次状态变化。</li>
+    <li><b>在 KiroCrew 中打开</b>：用一次性链接进入原生会话，看交接文件与结论的逐行差异，也可以直接接着聊。因为原生登录覆盖整个 Gateway，这个入口只开放给个人空间本人、Team 专属环境的成员和共享环境的边界所有者。</li>
+  </ul>
+  <figure class="pair">
+    <img src="img/observe.webp" width="1600" height="1000" alt="控制台中的 KiroCrew 会话面板">
+    <img src="img/native-kirocrew.webp" width="1600" height="1000" alt="KiroCrew 原生会话页">
+    <figcaption><b>图 13</b>　左：控制台里的 KiroCrew 会话面板，平台消息与协调者的推理并列。右：在 KiroCrew 中打开的原生会话，显示交接文件和结论的差异。</figcaption>
+  </figure>
+
+  <h3 id="flow-output">5.8　查看与交付产出</h3>
+  <table>
+    <tr><th>操作</th><th>说明</th></tr>
+    <tr><td>预览产出</td><td>列出会话工作区里的页面，签发 10 分钟有效、绑定账号的预览链接；每次打开都重新核对权限。预览运行在沙箱里，localStorage 与 Cookie 不可用</td></tr>
+    <tr><td>公开分享</td><td>把页面或运行中的演示发给没有账号的人：可设四位授权码，有效期 1 天、7 天、30 天或永久；不提供源码与配置</td></tr>
+    <tr><td>远程预览</td><td>在执行环境里运行会话的应用（开发服务器，前后端两个进程），经独立的预览域名打开</td></tr>
+    <tr><td>下载源码</td><td>下载会话工作区（含 <code>.git</code>）到本机运行；Coding Agent 里也可以调用对应的工具</td></tr>
+    <tr><td>报告</td><td>汇总需求与计划、各任务的门禁与候选、审查结论、纠错记录与发布情况，可下载 Markdown 或 HTML</td></tr>
+    <tr><td>发布到仓库</td><td>把已验证的候选提交推送到 Git 仓库，可勾选完成后自动发布 Draft PR；需要有效的仓库凭证</td></tr>
+  </table>
+  <div class="callout warn"><p><b>注意：</b>“发布到仓库”点击后立即推送，没有二次确认。操作前请确认目标仓库和凭证。凭证失效时 Git 操作会直接失败，不会推送任何内容（2026-11-17 实测）。</p></div>
+  <figure class="pair">
+    <img src="img/preview-menu.webp" width="1600" height="1000" alt="预览产出的下拉菜单：本会话产出的页面与公开分享">
+    <img src="img/preview-output.webp" width="1600" height="1000" alt="研究报告 HTML 的预览">
+    <figcaption><b>图 14</b>　左：“预览产出”旁的下拉菜单，列出本会话产出的全部页面，最下面是“公开分享”。右：打开其中的研究报告。</figcaption>
+  </figure>
+  <figure class="half">
+    <img src="img/report.webp" width="1024" height="864" alt="会话报告">
+    <figcaption><b>图 15</b>　会话报告：需求与计划、门禁与候选、审查结论、纠错记录与发布，可下载 Markdown 或 HTML。</figcaption>
+  </figure>
+
+  <h3 id="flow-iterate">5.9　迭代：在原会话、原工作区接着改</h3>
+  <p>不满意时点“续作”。会话 ID、工作区和上游交接都不变；你选的任务和依赖它的下游任务会重跑，其余沿用上一版结果，旧的执行保留为历史证据。可以顺便换工具、换模型，工具或模型一变就是一次新的原生执行。会话暂停时，也可以“请求协调者诊断”。</p>
+  <figure class="pair">
+    <img src="img/continue.webp" width="576" height="920" alt="续作对话框">
+    <img src="img/revisions-diff.webp" width="1600" height="1000" alt="修订历史：v1 与 v2 的对比">
+    <figcaption><b>图 16</b>　左：续作对话框，可修改需求、任务说明、工具、模型和 Effort，并选择同时重跑的后续任务。右：修订历史，任选两版对比，绿色是规划新增任务的完整 Prompt。</figcaption>
+  </figure>
+
+  <h3 id="flow-collab">5.10　协作与复用</h3>
+  <ul>
+    <li><b>Team 空间</b>：在顶栏切换到 Team 空间提交的会话，对所有成员可见；成员可以查看和操作，执行发生在 Team 的执行环境里。</li>
+    <li><b>共享会话</b>：共享给某个人、某个 Team 或全公司，角色分“查看”和“协作”（再加续作、停止、确认与关闭）。删除、发布、改派执行环境和原生入口不对共享开放。</li>
+    <li><b>接手</b>：协作者或 Team 成员可以把共享来的会话接手到自己的执行环境，此后以自己的身份、凭证和用量续作，提交历史不变；创建者可以接回。</li>
+    <li><b>工作流库</b>：好的流程沉淀成工作流，编辑即生成新版本，在跑的会话不受影响；可以共享给个人或 Team，权限分查看、运行、编辑三级。</li>
+  </ul>
+  <figure>
+    <img src="img/team-space.webp" width="1600" height="1000" alt="Team 空间：Web应用软件研发组的会话">
+    <figcaption><b>图 17</b>　切换到 Team 空间“Web应用软件研发组”：这里的两个会话（一个网页时钟、一个电商网站雏形）对所有成员可见。</figcaption>
+  </figure>
+  <figure>
+    <img src="img/workflows.webp" width="1600" height="1000" alt="工作流库">
+    <figcaption><b>图 18</b>　工作流库：每个工作流写明任务链、版本和归属，可以直接“新建开发”或“编辑”。</figcaption>
+  </figure>
+  <figure class="pair">
+    <img src="img/workflow-edit.webp" width="896" height="736" alt="编辑工作流">
+    <img src="img/session-share.webp" width="896" height="414" alt="共享会话">
+    <figcaption><b>图 19</b>　左：编辑工作流“完整研发链-迭代”（Kiro CLI → Claude Code → Codex → Claude Code），可以让 KiroCrew 推荐、导入文件、导出 JSON 或共享。右：共享会话对话框。</figcaption>
+  </figure>
+</section>
+
+<section id="scenarios">
+  <h2>6　适用场景</h2>
+  <p>判断一件事适不适合交给 KiroCrew ON，看三点：<b>能写清楚验收标准</b>，<b>值得让第二个工具来审</b>，<b>结果需要留存、共享或后续迭代</b>。下表里的例子都是线上实例中真实完成的会话。</p>
+  <table>
+    <tr><th>场景</th><th>典型需求</th><th>推荐编排</th><th>线上的真实例子</th></tr>
+    <tr><td>技术调研与对比报告</td><td>读仓库或文档，带出处地对比方案、给出建议</td><td>“深度 GitHub Repo 技术调研”类工作流：Claude Code 调研，Codex 独立审查</td><td>四种知识检索方式对比（RAG / PG 规则库 / Mem0 / GraphRAG）；RDS MySQL 跨区同步调研；S3 Files 与 Storage Gateway 横向对比；Kiro 与 EKS / RDS 安全集成调研（输出 PDF）</td></tr>
+    <tr><td>讲解页、演示文稿、报告</td><td>把技术内容做成可直接展示的 HTML</td><td>规划 → 撰写 → Node 静态断言 → Evaluator 核验</td><td>KiroCrew ON 团队技术分享；AgenticOps 项目介绍；AgentCore 核心架构讲解；Embedding 模型分析报告</td></tr>
+    <tr><td>应用与原型开发</td><td>从零做一个可运行的 Web 应用或后端原型</td><td>完整研发链：Kiro 分析 → Claude Code 实现 → Codex 审查 → Claude Code 交付</td><td>Agent + 知识库最小生产原型（FastAPI、pytest、Bedrock Provider，8 个任务）；企业规则库 0→1；three.js 网页小游戏；电商网站雏形</td></tr>
+    <tr><td>代码审查、测试与修复</td><td>基于真实代码实现、补测试、独立审查</td><td>Git 来源 + SDE 实现 + Challenge / 安全测试 + Evaluator</td><td>医疗器械电商雏形（Claude Opus 5.5 研发 + Codex 测试）；在指定代码里实现函数并附可运行的检查命令</td></tr>
+    <tr><td>Team 协作研发</td><td>多人看同一个会话、复用同一套流程</td><td>Team 空间 + 共享工作流（runner / editor）</td><td>“Web应用软件研发组”的两个会话；共享给 Team 的“Web应用功能更新验证流”</td></tr>
+    <tr><td>沉淀研发流程</td><td>把好的做法变成可复用的工作流</td><td>“KiroCrew 推荐（先审阅）”生成，审阅后保存为工作流</td><td>平台上约有 23 个工作流设计类会话，产出了 Deep Research、GitHub Repo 调研等工作流</td></tr>
+  </table>
+  <figure class="pair">
+    <img src="img/output-deck.webp" width="1600" height="1000" alt="会话产出：KiroCrew ON 团队技术分享演示文稿">
+    <img src="img/output-kb.webp" width="1600" height="1000" alt="会话产出：Agent + 知识库最小原型的架构讲解页">
+    <figcaption><b>图 20</b>　两个会话的产出首屏。左：团队技术分享演示文稿（8 个任务）。右：Agent + 知识库最小原型的架构讲解页（8 个任务）。</figcaption>
+  </figure>
+  <h3>不适合的场景</h3>
+  <ul>
+    <li><b>需要直接发布到生产</b>：平台不合并、不部署，结果先给人看。它不是 CI/CD。</li>
+    <li><b>几秒钟就能在本机改完的小事</b>：规划、互审和门禁会带来额外的时间和模型调用。</li>
+    <li><b>说不清验收标准的开放式探索</b>：可以做，但门禁和 Evaluator 发挥不了作用；建议先用“KiroCrew 推荐（先审阅）”把目标写清楚。</li>
+    <li><b>依赖私有内网资源而执行环境访问不到</b>：执行环境需要能访问源码仓库和依赖；私有仓库需要配置仓库凭证。</li>
+  </ul>
+</section>
+
+<section id="case">
+  <h2>7　案例：一次研究会话的完整过程</h2>
+  <p>会话 <code>run-44dc0643a7dd400bbce55654877d547e</code>：在财务审核单据的场景里，对比纯 RAG、仓库自带的 PG 规则库、Mem0 与 GraphRAG，产出中文报告和单文件 HTML。只读研究，不改代码，不推送。来源是一个 GitHub 仓库。</p>
+  <figure>
+    <img src="img/run-session.webp" width="1600" height="1000" alt="会话详情页头：标题、会话 ID、修订号、交接进度与操作">
+    <figcaption><b>图 21</b>　会话页头：标题、会话 ID、修订号、交接进度 4/4，以及续作、诊断、在 KiroCrew 中打开、下载源码、报告、共享、预览产出、停止等操作。</figcaption>
+  </figure>
+  <h3>任务链</h3>
+  <p>规划（Kiro）→ 撰写 report.md（Kiro，研究员）→ 生成单文件 index.html（Kiro，撰写者）→ 逐条核对验收项（Codex，Evaluator，只读）。作者与审查者用不同的工具：协调者在一次纠错决定里明确写道，“保持 task-1 工具为 kiro，不得改为 codex（审查者工具），以维持 evaluator 与作者工具相异”。</p>
+  <h3>修订时间线</h3>
+  <table>
+    <tr><th>版本</th><th>时间</th><th>事件</th></tr>
+    <tr><td>v1</td><td>11-03 20:55</td><td>创建会话（1 个规划任务）</td></tr>
+    <tr><td>v2</td><td>20:58</td><td>规划完成，追加 3 个任务</td></tr>
+    <tr><td>v3</td><td>21:10</td><td>自动纠错：审查发现 F1、F2、F3，退回撰写报告的任务</td></tr>
+    <tr><td>v4</td><td>21:24</td><td>自动纠错：F2、F3 仍未修正，再次退回</td></tr>
+    <tr><td>v5</td><td>11-04 08:57</td><td>用户在原会话续作</td></tr>
+    <tr><td>v6</td><td>09:01</td><td>自动纠错：发现 F5，退回撰写报告的任务</td></tr>
+    <tr><td>v7</td><td>09:10</td><td>自动纠错：判定 F4 是平台的候选范围问题，不归责作者，让审查据实复核</td></tr>
+    <tr><td>完成</td><td>09:11</td><td>4 个任务全部交接通过</td></tr>
+  </table>
+  <h3>审查打回的问题，每条都有出处</h3>
+  <table>
+    <tr><th>编号</th><th>问题</th></tr>
+    <tr><td>F1</td><td>HTML 里三个术语被 NUL 占位符替换（index.html:83、121）</td></tr>
+    <tr><td>F2</td><td>引用行号漂移：报告写 parse_rules.py:188–205，实际在 167–178</td></tr>
+    <tr><td>F3</td><td>表述过强：报告称“全链路确定性”，但召回排序与最终判定并不确定</td></tr>
+    <tr><td>F4</td><td>两份平台运行时配置混进了候选改动：协调者判定为平台的候选范围问题，记为不阻断的观察项</td></tr>
+    <tr><td>F5</td><td>“只读事务下结果照常返回”与 kb_search.sql:439–441 的限流逻辑不符</td></tr>
+  </table>
+  <p>整个会话共 15 次执行，Agent 用时约 42 分钟。最后一轮 Evaluator 的执行证据见图 11：六项验收全部通过，例如“54 处带路径引用均可定位”“HTML 与报告规范化后 16,287 个字符一致，无外部资源加载”。</p>
+  <div class="callout"><p>这个案例说明了平台的价值所在：第一版报告看起来已经完成，但有 5 处可以被源码证伪的问题。没有独立审查和纠错循环，这些问题会直接进入交付物。</p></div>
+</section>
+
+<section id="admin">
+  <h2>8　管理与治理</h2>
+  <figure>
+    <img src="img/admin-overview.webp" width="1600" height="1000" alt="管理概览：执行环境、进行中的会话、用户、Team 与需要处理的事项">
+    <figcaption><b>图 22</b>　管理 › 概览：执行环境可达数、进行中的会话、用户数、Team 数，以及需要处理的事项，每 30 秒刷新。</figcaption>
+  </figure>
+  <table>
+    <tr><th>领域</th><th>能力</th></tr>
+    <tr><td>用户</td><td>新建、停用与恢复、设为或取消管理员、重设密码；停用或重设密码会让该用户的全部 Token 立即失效；平台至少保留一位有效管理员，Team 唯一的 owner 不能被停用</td></tr>
+    <tr><td>Team</td><td>创建时指定 owner 和执行环境；管理成员、角色、改名和归档</td></tr>
+    <tr><td>执行环境</td><td>登记 Worker（支持一次性接入码，Token 不经人手）、分配到空间、共享或改回专属、停用；查看版本、Kiro 登录状态、可用工具和负载；单机版可在控制台“新建边界”</td></tr>
+    <tr><td>接入与凭证</td><td>为每个客户端单独创建 Token，权限分 read、execute、manage、admin，可重新生成或撤销；代码仓库凭证（GitHub / GitLab）分个人、Team、平台三级，保存后不再显示，也不进入任何会话、日志或 Agent 对话</td></tr>
+    <tr><td>并发上限</td><td>按个人或 Team 限制同时运行的任务数；到上限就排队，有任务结束后自动开始</td></tr>
+    <tr><td>部署</td><td>单机版的 AWS 变更（公网原生入口、异地备份、更新栈）在这里登记，由管理员在本机或 CloudShell 用部署套件执行，主机上不留管理凭证</td></tr>
+    <tr><td>审计</td><td>管理员越权查看、观察、预览、导出他人会话写入审计；会话的每次变更记录是谁、从哪个客户端、改了什么</td></tr>
+  </table>
+  <figure class="pair">
+    <img src="img/admin-access.webp" width="1600" height="1000" alt="API 与 Coding Agent 接入：Token 列表与仓库凭证">
+    <img src="img/admin-concurrency.webp" width="1600" height="1000" alt="并发上限">
+    <figcaption><b>图 23</b>　左：API 与 Coding Agent 接入，列出每枚 Token 的权限、到期和最近使用时间，下方是 REST、事件流、MCP 和 OpenAPI 的接入方式。右：并发上限。</figcaption>
+  </figure>
+  <p>几条治理上的原则：</p>
+  <ul>
+    <li><b>共享工作流、共享会话、共享凭据是三件事</b>，互不隐式授权。用户 Token、Worker Token 和 Gateway 的原生凭据彼此分开。</li>
+    <li><b>新建账号、重设密码、设为管理员、恢复账号只认控制台登录</b>，Coding Agent 和 API Token 做不了这些操作。</li>
+    <li><b>状态如实报告</b>：模型、测试和部署结论按实际记录，未知就显示未知，不把目标写成已完成。</li>
+  </ul>
+</section>
+
+<section id="deploy">
+  <h2>9　部署形态</h2>
+  <table>
+    <tr><th>形态</th><th>说明</th><th>状态</th></tr>
+    <tr><td>当前线上实例</td><td>AWS us-east-1 的 EC2，前面是 CloudFront（控制台与 API、原生入口分别有分发）；截图当时有三个执行环境，两个共享、一个专属，其中 w1 是独立的 Worker 主机；模型经 Amazon Bedrock</td><td class="ok">运行中</td></tr>
+    <tr><td>单机版一键安装</td><td><code>curl -fsSL https://&lt;下载域名&gt;/install.sh | sudo sh</code>，支持 AL2023、Ubuntu 22.04 / 24.04，x86_64 与 ARM64；先预检，不满足的项一次列全后退出；验签后安装；也可 <code>pip install kirocrew-on</code> 加 <code>sudo kirocrew-on setup</code>，或 Docker（一个容器、一个边界，用于试用）</td><td class="mid">0.2.0 P2，9 项中 8 项已部署</td></tr>
+    <tr><td>集群版</td><td>一台控制面主机加一个 Graviton 主机池；每人一块加密的 EBS 卷保存工作区、Agent 登录状态和记忆，换主机就是改挂这块卷；用户在控制台自助申请 Worker</td><td>规划中（0.2.0 P3–P5）</td></tr>
+  </table>
+  <p>可用性方面，0.2.0 的目标是 99.5%：平台数据库用 Litestream 持续备份（RPO ≤ 5 秒），另一可用区温备（RTO ≤ 15 分钟）。认证信息不集中存放，随用户的卷走。</p>
+  <figure>
+    <img src="img/admin-deploy.webp" width="1600" height="1000" alt="管理 › 部署">
+    <figcaption><b>图 24</b>　管理 › 部署：单机版装完后，主机角色只保留 Bedrock 调用权限；需要修改 AWS 资源时在这里登记，再用部署套件执行。</figcaption>
+  </figure>
+</section>
+
+<section id="data">
+  <h2>10　运行数据</h2>
+  <p>以下数据由管理员账号通过 <code>GET /v1/runs?all=1</code> 于 2026-11-19 读取，覆盖线上实例自 2026-10-11 至 11-11 创建的全部会话，共 5 位创建者，其中包含平台自身的验收会话。</p>
+  <table>
+    <tr><th>指标</th><th>数值</th></tr>
+    <tr><td>会话</td><td>140 个：已完成 114，已停止 20，受阻 6；个人空间 130，Team 空间 10</td></tr>
+    <tr><td>代码来源</td><td>新项目 80，Git 仓库 46，无需仓库 14</td></tr>
+    <tr><td>编排</td><td>KiroCrew 自动规划 46，模板或手动编排 94</td></tr>
+    <tr><td>任务与执行</td><td>411 个任务，532 次执行（平均每个任务 1.29 次），Agent 累计用时约 42.5 小时</td></tr>
+    <tr><td>多工具协作</td><td>80 个会话用了两种及以上的 Coding 工具；38 个会话有 Evaluator 任务；38 个会话出现过重试或返工</td></tr>
+  </table>
+  <h4>411 个任务按 Coding 工具</h4>
+  <div class="bar"><span>Claude Code</span><span class="tr"><i style="width:100%;background:#c47f33"></i></span><span class="v">181</span></div>
+  <div class="bar"><span>Kiro CLI</span><span class="tr"><i style="width:88.9%;background:#9670c0"></i></span><span class="v">161</span></div>
+  <div class="bar"><span>Codex</span><span class="tr"><i style="width:37.6%;background:#2e97b5"></i></span><span class="v">68</span></div>
+  <div class="bar"><span>OpenCode</span><span class="tr"><i style="width:.6%;min-width:3px;background:#5e9a45"></i></span><span class="v">1</span></div>
+  <h4>140 个会话按用途</h4>
+  <p class="small">按会话标题的关键词自动划分，存在误差，只用于说明大致的使用分布。</p>
+  <table>
+    <tr><th>用途</th><th>会话数</th><th>说明</th></tr>
+    <tr><td>平台验收与回归</td><td>64</td><td>平台每个版本的验收用例，例如“D59 验收：密封的 Worker Token”</td></tr>
+    <tr><td>调研与技术报告</td><td>约 26</td><td>其中十余个直接以一个仓库或文档链接作为需求</td></tr>
+    <tr><td>工作流设计</td><td>约 23</td><td>“工作流建议”会话，由 KiroCrew 设计任务链与 Prompt</td></tr>
+    <tr><td>讲解页 / 演示文稿</td><td>13</td><td>多为 3Blue1Brown 风格的 HTML 报告</td></tr>
+    <tr><td>应用与原型开发</td><td>9</td><td>规则库、中心化平台、网页游戏等</td></tr>
+    <tr><td>审查 / 测试 / 修复</td><td>5</td><td>例如“医疗器械电商雏形（Claude Opus 5.5 研发 + Codex 测试）”</td></tr>
+  </table>
+</section>
+
+<section id="limits">
+  <h2>11　当前限制</h2>
+  <table>
+    <tr><th>限制</th><th>影响与处理</th></tr>
+    <tr><td>OpenCode 执行尚未通过（K01）</td><td>shell 写文件被 KiroCrew 的工具门禁拒绝；选择 OpenCode 的任务会由平台改派 Claude Code。411 个任务里只有 1 个选了 OpenCode</td></tr>
+    <tr><td>原生登录覆盖整个 Gateway（K03）</td><td>“在 KiroCrew 中打开”只开放给有权使用整个执行边界的人；其他人用控制台的 KiroCrew 会话面板观察</td></tr>
+    <tr><td>kiro-cli 登录会过期</td><td>过期后 Kiro 任务无法执行，需要执行环境的主人在控制台重新登录；截图当天三个环境都处于过期状态</td></tr>
+    <tr><td>发布到仓库没有二次确认</td><td>点击即推送；依赖有效的仓库凭证，凭证失效时不会推送任何内容</td></tr>
+    <tr><td>0.2.0 仍是预览版</td><td>单机版一键安装已部署 9 项中的 8 项；集群版、自助申请 Worker 尚未开始</td></tr>
+    <tr><td>同一域名下的残余风险</td><td>Agent 做的演示页可以把站点 Cookie 写满，使浏览器暂时打不开控制台；清除该站点数据即可恢复，读不到也改不了任何人的数据</td></tr>
+    <tr><td>不是 CI/CD</td><td>平台不合并、不部署；“完成”指原生执行与交接核对完成，不等于安全认证</td></tr>
+  </table>
+</section>
+
+<section id="roadmap">
+  <h2>12　路线图</h2>
+  <table>
+    <tr><th>版本</th><th>主题</th><th>内容</th></tr>
+    <tr><td>0.1</td><td>跑通协作闭环</td><td>连接 → 提交 → 规划 → 多 Agent 执行与互审 → 观察 → 预览 → 续作；Team 执行环境与独立 Worker 主机（已完成）</td></tr>
+    <tr><td>0.2</td><td>部署模式与 Worker 池</td><td>单机版一键安装、自助申请 Worker、Worker 池、用户卷、温备（进行中）</td></tr>
+    <tr><td>0.3</td><td>成果出库</td><td>Feature 分支、diff、Feature 报告；“发布到仓库”和 Draft PR 已提前出现在控制台</td></tr>
+    <tr><td>0.4</td><td>完成优先</td><td>瞬时重试、工具回退链、预算、看门狗、批准请求可见、命名质量门禁</td></tr>
+    <tr><td>0.5</td><td>处处可用</td><td>更多客户端一键接入、服务端分页与全文检索、diff 与报告视图</td></tr>
+    <tr><td>1.0</td><td>Always-On 组织协作空间</td><td>组织层；会话共享给个人、Team、组织；PR / MR；Issue、Webhook、定时触发；记忆按空间分层；配额与排队</td></tr>
+  </table>
+  <p class="small">路线图是规划，顺序以项目负责人确认为准。</p>
+</section>
+
+<section id="quickstart">
+  <h2>13　快速上手</h2>
+  <h3>开发者</h3>
+  <ol class="steps">
+    <li>向管理员要一个账号，并确认你的个人空间或 Team 已分配执行环境。</li>
+    <li>执行 <code>octopus connect claude</code>（或 kiro、codex、kiro-ide），然后重启客户端。</li>
+    <li>说出需求，最好带上验收标准，例如：“用 KiroCrew ON 做一个番茄钟网页：25 分钟专注、5 分钟休息，可暂停与重置；Claude Code 实现，Codex 审查，最后在浏览器里真实验证。”</li>
+    <li>去做别的事；回来问“现在做到哪了？”，或在控制台看规划、任务和 KiroCrew 会话面板。</li>
+    <li>完成后要预览、下载源码或看报告；不满意就说“把……改成……”，在原会话续作。</li>
+  </ol>
+  <h3>管理员</h3>
+  <ol class="steps">
+    <li>部署平台（当前为 EC2 + CloudFront；0.2.0 起可用单机版一键安装）。</li>
+    <li>在“管理”里创建用户和 Team，登记执行环境并分配到空间。</li>
+    <li>让执行环境的主人登录 Kiro；按需设置并发上限和仓库凭证。</li>
+    <li>定期查看“管理 › 概览”里需要处理的事项，例如登录过期、Worker 不可达。</li>
+  </ol>
+</section>
+
+<section id="appendix">
+  <h2>附录</h2>
+  <h3>A　常用的 MCP 工具</h3>
+  <table>
+    <tr><th>工具</th><th>用途</th></tr>
+    <tr><td><code>octopus_start</code></td><td>提交新需求；可指定来源（新项目或 Git 仓库）、工作流文档或 Worker</td></tr>
+    <tr><td><code>octopus_status</code> / <code>octopus_runs</code></td><td>查看一个会话的真实状态与最近事件 / 列出可见的全部会话</td></tr>
+    <tr><td><code>octopus_observe</code></td><td>读取协调者与子 Agent 的最近对话</td></tr>
+    <tr><td><code>octopus_revisions</code></td><td>修订历史与两版之间的差异</td></tr>
+    <tr><td><code>octopus_continue</code> / <code>octopus_recover</code></td><td>在原会话续作 / 请协调者诊断修复</td></tr>
+    <tr><td><code>octopus_control</code></td><td>停止、关闭、重开、删除（建议先征得用户同意）</td></tr>
+    <tr><td><code>octopus_preview</code></td><td>签发预览链接</td></tr>
+    <tr><td><code>octopus_workflows</code> / <code>octopus_save_workflow</code> / <code>octopus_share_workflow</code></td><td>列出、保存、共享工作流</td></tr>
+    <tr><td><code>octopus_match_workflow</code> / <code>octopus_recommend_workflow</code> / <code>octopus_parse_workflow</code></td><td>按需求匹配工作流 / 请 KiroCrew 推荐 / 预览导入文档的规范化结果</td></tr>
+    <tr><td><code>octopus_teams</code></td><td>列出你的 Team 及成员</td></tr>
+  </table>
+  <p class="small">0.2.0 分支另有下载源码、远程预览、接手等工具，以及需要 admin Token 的管理工具。实际可用的工具以你连接的平台版本为准。</p>
+  <h3>B　本仓库与 KiroCrew ON 的关系</h3>
+  <p>本仓库 kirocrew-octopus 是 KiroCrew ON 的前身：以 KiroCrew 为入口、ACP 为执行底座，把 Kiro 规划、Claude Code 编码、Codex 审查串成工作流，先后有 macOS 上的 PoC 工作台和 MVP-1.0.0 Team 版。2026-10-10，源码迁入 kirocrew-on 仓库并持续迭代，至今已发布 MVP 0.1.0、0.1.1 和 0.2.0rc1。Team 版的界面今天仍保留在线上的 <code>/classic/</code>。</p>
+  <figure class="half">
+    <img src="img/classic.webp" width="1600" height="1000" alt="经典控制台：Octopus 1.0.0 Team 开发工作台">
+    <figcaption><b>图 25</b>　经典控制台（Octopus 1.0.0），来自本仓库的 MVP-1.0.0 Team 版。</figcaption>
+  </figure>
+  <h3>C　资料来源</h3>
+  <ul>
+    <li>线上实例 https://kirocrew-on.tinyboat.blog 的控制台截图（2026-11-17、11-19）与 API 返回（<code>/v1/runs</code>、<code>/v1/runs/&lt;id&gt;/revisions</code>）。</li>
+    <li>MCP 工具 <code>octopus_workflows</code>、<code>octopus_teams</code> 的返回（2026-11-19）。</li>
+    <li>kirocrew-on 仓库 <code>feat/mvp-0.2.0</code> 分支：README.md、docs/MVP-0.1.0.md、docs/MVP-0.2.0.md、docs/ARCHITECTURE.md、docs/CONNECT.md、docs/BACKLOG.md，以及 octopus/gates.py、octopus/roles/、octopus/phases.py。</li>
+    <li>kirocrew-on 的 Skill 说明（skills/kirocrew-on/SKILL.md）。</li>
+  </ul>
+</section>
+</main>
+</div>
+</body>
+</html>
